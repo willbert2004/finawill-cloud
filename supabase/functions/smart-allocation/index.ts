@@ -503,7 +503,7 @@ serve(async (req) => {
               title: 'Supervisor Assigned! 🎉',
               message: `A supervisor has been assigned to your project "${project.title}" based on expertise matching.`,
               type: 'allocation',
-              link: '/projects'
+              link: `/projects/${project.id}`
             });
           }
         }

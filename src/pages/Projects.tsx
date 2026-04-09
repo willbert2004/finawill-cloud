@@ -239,7 +239,7 @@ export default function Projects() {
   };
 
   const ProjectCard = ({ project }: { project: Project }) => (
-    <Card onClick={() => setSelectedProject(project)} className={`group hover-lift transition-all duration-300 cursor-pointer border-transparent shadow-card hover:shadow-hover ${project.status === 'needs_revision' ? 'border-l-4 border-l-destructive' : project.status === 'approved' ? 'border-l-4 border-l-success' : project.status === 'pending' ? 'border-l-4 border-l-warning' : project.status === 'finalized' ? 'border-l-4 border-l-emerald-600' : ''}`}>
+    <Card onClick={() => navigate(`/projects/${project.id}`)} className={`group hover-lift transition-all duration-300 cursor-pointer border-transparent shadow-card hover:shadow-hover ${project.status === 'needs_revision' ? 'border-l-4 border-l-destructive' : project.status === 'approved' ? 'border-l-4 border-l-success' : project.status === 'pending' ? 'border-l-4 border-l-warning' : project.status === 'finalized' ? 'border-l-4 border-l-emerald-600' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start gap-2">
           <CardTitle className="text-base line-clamp-2 group-hover:text-primary transition-colors">{project.title}</CardTitle>
