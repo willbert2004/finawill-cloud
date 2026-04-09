@@ -141,7 +141,7 @@ export function SupervisorDashboard({ user, projectStats, recentProjects, groupC
                     <div
                       key={project.id}
                       className="group flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-primary/5 hover:border-primary/20 transition-all duration-200 cursor-pointer"
-                      onClick={() => navigate("/projects")}
+                      onClick={() => navigate(`/projects/${project.id}`)}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="p-1.5 rounded-md bg-gradient-to-br from-primary to-primary-light shadow-sm">
