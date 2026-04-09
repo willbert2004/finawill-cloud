@@ -11,6 +11,7 @@ import Auth from "./pages/Auth";
 import DashboardHub from "./pages/DashboardHub";
 import Projects from "./pages/Projects";
 import CreateProject from "./pages/CreateProject";
+import ProjectDetails from "./pages/ProjectDetails";
 
 import Repository from "./pages/Repository";
 import Allocation from "./pages/Allocation";

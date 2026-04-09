@@ -60,7 +60,8 @@ export default function CreateProject() {
   const [isFinished, setIsFinished] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [allocationResult, setAllocationResult] = useState<any>(null);
-  const [formData, setFormData] = useState({ title: "", objectives: "", description: "", keywords: "", department: "", category: "" });
+  const [formData, setFormData] = useState({ title: "", objectives: "", description: "", department: "", category: "" });
+  const [submitting, setSubmitting] = useState(false);
   const [resubmitId, setResubmitId] = useState<string | null>(null);
   const [resubmitFeedback, setResubmitFeedback] = useState<string | null>(null);
   const [duplicateResult, setDuplicateResult] = useState<DuplicateCheckResult | null>(null);
