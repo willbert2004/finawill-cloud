@@ -1071,7 +1071,7 @@ serve(async (req) => {
             title: 'Project Approved! 🎉',
             message: `Your project "${project.title}" has been approved${assignedSupervisorId ? ` and assigned to ${assignedSupervisorName}` : ''}.`,
             type: 'project',
-            link: '/projects'
+            link: `/projects/${projectId}`
           });
       }
 
@@ -1122,7 +1122,7 @@ serve(async (req) => {
             title: 'Project Needs Revision',
             message: `${supProfile?.full_name || 'Your supervisor'} has requested revisions on "${project.title}": ${rejectionReason.trim()}`,
             type: 'project',
-            link: '/projects'
+            link: `/projects/${projectId}`
           });
       }
 
