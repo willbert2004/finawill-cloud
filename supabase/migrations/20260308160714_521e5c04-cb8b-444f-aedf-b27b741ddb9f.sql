@@ -1,0 +1,1 @@
+ALTER TABLE public.pending_allocations ADD CONSTRAINT pending_allocations_project_supervisor_unique UNIQUE (project_id, supervisor_id);
