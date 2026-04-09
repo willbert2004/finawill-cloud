@@ -313,6 +313,7 @@ function projectToDocument(project: any): string[] {
     project.description || '',
     ...(project.keywords || []),
     project.department || '',
+    project.category || '',
   ];
   return tokenize(parts.join(' '));
 }
