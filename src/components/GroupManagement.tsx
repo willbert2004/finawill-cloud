@@ -13,8 +13,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Users, Plus, Loader2, Check, X, Sparkles, Trash2, Mail, Phone, Clock, MapPin, Building2 } from "lucide-react";
+import { Users, Plus, Loader2, Check, X, Sparkles, Trash2, Mail, Phone, Clock, MapPin, Building2, Search, Shield, AlertTriangle, CheckCircle, FileText } from "lucide-react";
 import MilestoneProgress from "./MilestoneProgress";
+import { Progress } from "@/components/ui/progress";
+
+const PROJECT_CATEGORIES = [
+  "Artificial Intelligence", "Machine Learning", "Web Development", "Mobile Development",
+  "IoT (Internet of Things)", "Cybersecurity", "Data Science", "Cloud Computing",
+  "Blockchain", "Robotics", "Software Engineering", "Networking", "Embedded Systems",
+  "Game Development", "Other",
+];
 
 interface Student {
   id: string;
@@ -61,6 +69,73 @@ export default function GroupManagement() {
   const [editGroupId, setEditGroupId] = useState<string | null>(null);
   const [editMemberName, setEditMemberName] = useState("");
   const [editMemberRegNumber, setEditMemberRegNumber] = useState("");
+
+  // Group project submission state
+  const [projectDialogGroupId, setProjectDialogGroupId] = useState<string | null>(null);
+  const [gpForm, setGpForm] = useState({ title: "", objectives: "", description: "", department: "", category: "" });
+  const [gpChecking, setGpChecking] = useState(false);
+  const [gpDuplicateResult, setGpDuplicateResult] = useState<any>(null);
+  const [gpDuplicateChecked, setGpDuplicateChecked] = useState(false);
+  const [gpSubmitting, setGpSubmitting] = useState(false);
+
+  useEffect(() => { setGpDuplicateChecked(false); setGpDuplicateResult(null); }, [gpForm.title, gpForm.objectives, gpForm.description]);
+
+  const handleGroupDuplicateCheck = async () => {
+    if (!gpForm.title.trim() || !gpForm.objectives.trim() || !gpForm.description.trim()) {
+      toast({ title: "Missing Info", description: "Title, objectives, and description are required.", variant: "destructive" }); return;
+    }
+    setGpChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('check-duplicate', {
+        body: { title: gpForm.title, objectives: gpForm.objectives, description: gpForm.description }
+      });
+      if (error) throw error;
+      setGpDuplicateResult(data);
+      setGpDuplicateChecked(true);
+      if (data.isDuplicate) {
+        toast({ title: "Similar Projects Found", description: "Too similar to existing projects. Please modify.", variant: "destructive" });
+      } else {
+        toast({ title: "No Duplicates Found", description: "You can proceed to submit." });
+      }
+    } catch (error: any) { toast({ title: "Check Failed", description: error.message, variant: "destructive" }); }
+    finally { setGpChecking(false); }
+  };
+
+  const handleGroupProjectSubmit = async () => {
+    if (!projectDialogGroupId) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast({ title: "Not authenticated", variant: "destructive" }); return; }
+    if (!gpForm.title.trim() || !gpForm.objectives.trim() || !gpForm.description.trim() || !gpForm.department.trim() || !gpForm.category) {
+      toast({ title: "All fields required", variant: "destructive" }); return;
+    }
+    if (!gpDuplicateChecked) {
+      toast({ title: "Run similarity check first", variant: "destructive" }); return;
+    }
+    if (gpDuplicateResult?.isDuplicate) {
+      toast({ title: "Submission Blocked", description: "Too similar to existing projects.", variant: "destructive" }); return;
+    }
+    setGpSubmitting(true);
+    try {
+      const { data: project, error } = await supabase.from('projects').insert({
+        title: gpForm.title, description: gpForm.description, objectives: gpForm.objectives,
+        student_id: user.id, department: gpForm.department,
+        keywords: gpForm.category.trim() ? [gpForm.category.trim()] : [],
+        status: 'pending',
+        similarity_score: gpDuplicateResult?.highestSimilarity || 0,
+        is_duplicate: false,
+      }).select().single();
+      if (error) throw error;
+      // Smart allocation
+      try {
+        await supabase.functions.invoke('smart-allocation', { body: { action: 'auto_allocate_project', projectId: project.id } });
+      } catch (e) { console.error('Auto-allocation failed:', e); }
+      toast({ title: "Group Project Submitted!", description: "Matched supervisor will be notified." });
+      setProjectDialogGroupId(null);
+      setGpForm({ title: "", objectives: "", description: "", department: "", category: "" });
+      setGpDuplicateResult(null); setGpDuplicateChecked(false);
+    } catch (error: any) { toast({ title: "Failed", description: error.message, variant: "destructive" }); }
+    finally { setGpSubmitting(false); }
+  };
 
   useEffect(() => { fetchData(); }, []);
 
@@ -563,10 +638,7 @@ export default function GroupManagement() {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-8">
               <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground mb-4">You haven't created any groups yet</p>
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />Create Your First Group
-              </Button>
+              <p className="text-muted-foreground mb-4">You haven't created any groups yet. Click "Create Group" above to get started.</p>
             </CardContent>
           </Card>
         )}
@@ -635,10 +707,15 @@ export default function GroupManagement() {
                     </Dialog>
                   </div>
                 )}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {(userType === 'student' || userType === 'admin') && (
+                    <Button onClick={() => setProjectDialogGroupId(group.id)} variant="outline" className="flex-1" size="sm">
+                      <FileText className="h-4 w-4 mr-2" />Submit Project
+                    </Button>
+                  )}
                   {(userType === 'student' || userType === 'admin') && (
                     <Button onClick={() => handleAllocateGroup(group.id)} className="flex-1" size="sm">
-                      <Sparkles className="h-4 w-4 mr-2" />Allocate to Supervisor
+                      <Sparkles className="h-4 w-4 mr-2" />Allocate
                     </Button>
                   )}
                   {(userType === 'student' || userType === 'admin' || userType === 'supervisor') && (
@@ -652,6 +729,93 @@ export default function GroupManagement() {
           ))}
         </div>
       </section>
+      {/* Group Project Submission Dialog */}
+      <Dialog open={!!projectDialogGroupId} onOpenChange={(open) => { if (!open) { setProjectDialogGroupId(null); setGpForm({ title: "", objectives: "", description: "", department: "", category: "" }); setGpDuplicateResult(null); setGpDuplicateChecked(false); } }}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Submit Group Project</DialogTitle>
+            <DialogDescription>Fill in project details, check for duplicates, then submit. A matching supervisor will be notified.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Project Title *</Label>
+              <Input value={gpForm.title} onChange={e => setGpForm({ ...gpForm, title: e.target.value })} placeholder="Enter project title" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Department *</Label>
+                <Input value={gpForm.department} onChange={e => setGpForm({ ...gpForm, department: e.target.value })} placeholder="e.g. Computer Science" />
+              </div>
+              <div>
+                <Label>Category *</Label>
+                <Select value={gpForm.category} onValueChange={v => setGpForm({ ...gpForm, category: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    {PROJECT_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label>Objectives *</Label>
+              <Textarea value={gpForm.objectives} onChange={e => setGpForm({ ...gpForm, objectives: e.target.value })} placeholder="List main objectives..." rows={3} />
+            </div>
+            <div>
+              <Label>Description *</Label>
+              <Textarea value={gpForm.description} onChange={e => setGpForm({ ...gpForm, description: e.target.value })} placeholder="Describe methodology and expected outcomes..." rows={4} />
+            </div>
+            <div className="flex justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setGpForm({ title: "", objectives: "", description: "", department: "", category: "" })}>
+                Clear All Fields
+              </Button>
+            </div>
+
+            {/* Similarity Check */}
+            <div className="border-2 border-dashed border-primary/20 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-primary" />
+                  <span className="font-semibold text-sm">Similarity Check</span>
+                  {gpDuplicateChecked && (
+                    gpDuplicateResult?.isDuplicate ?
+                      <Badge variant="destructive" className="text-[10px]">Blocked</Badge> :
+                      <Badge className="bg-green-500/10 text-green-600 border-green-500/30 text-[10px]">Passed</Badge>
+                  )}
+                </div>
+                <Button type="button" onClick={handleGroupDuplicateCheck} disabled={gpChecking} variant="outline" size="sm">
+                  {gpChecking ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Checking...</> : <><Search className="h-3 w-3 mr-1.5" />Check</>}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">Must pass before submission. Projects above 35% similarity are blocked.</p>
+              {gpDuplicateResult && (
+                <div className={`rounded-lg p-3 ${gpDuplicateResult.isDuplicate ? 'bg-destructive/10 border border-destructive/20' : 'bg-green-500/10 border border-green-500/20'}`}>
+                  <div className="flex items-center gap-2 mb-1">
+                    {gpDuplicateResult.isDuplicate ? <AlertTriangle className="h-4 w-4 text-destructive" /> : <CheckCircle className="h-4 w-4 text-green-600" />}
+                    <span className={`text-sm font-medium ${gpDuplicateResult.isDuplicate ? 'text-destructive' : 'text-green-600'}`}>
+                      {gpDuplicateResult.isDuplicate ? 'Blocked' : 'Passed'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{gpDuplicateResult.message}</p>
+                </div>
+              )}
+              {gpDuplicateResult?.similarProjects?.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold">Similar Projects:</h4>
+                  {gpDuplicateResult.similarProjects.slice(0, 3).map((sp: any) => (
+                    <div key={sp.id} className="border rounded p-2 text-xs bg-background">
+                      <div className="flex justify-between"><span className="font-medium">{sp.title}</span><Badge variant="secondary" className="text-[10px]">{Math.round(sp.similarity)}%</Badge></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Button onClick={handleGroupProjectSubmit} disabled={gpSubmitting || !gpDuplicateChecked || gpDuplicateResult?.isDuplicate} className="w-full">
+              {gpSubmitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Submitting...</> : "Submit Group Project"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

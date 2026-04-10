@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SIMILARITY_THRESHOLD = 35; // Projects above this % are considered duplicates
+const SIMILARITY_THRESHOLD = 35;
 
 interface Project {
   id: string;
@@ -19,8 +19,8 @@ interface Project {
   year?: number;
 }
 
-interface SimilarityResult {
-  projectId: string;
+interface ScoredProject {
+  project: Project;
   score: number;
 }
 
@@ -28,17 +28,18 @@ async function computeSemanticSimilarity(
   newProject: { title: string; objectives: string; description: string },
   existingProjects: Project[],
   apiKey: string
-): Promise<SimilarityResult[]> {
+): Promise<ScoredProject[]> {
   if (existingProjects.length === 0) return [];
 
   const batchSize = 10;
-  const allResults: SimilarityResult[] = [];
+  const allResults: ScoredProject[] = [];
 
   for (let i = 0; i < existingProjects.length; i += batchSize) {
     const batch = existingProjects.slice(i, i + batchSize);
 
+    // Use sequential index numbers so we can reliably map results back
     const projectList = batch.map((p, idx) =>
-      `Project ${idx + 1} (ID: ${p.id}):\nTitle: ${p.title}\nObjectives: ${p.objectives || 'N/A'}\nDescription: ${p.description}`
+      `Project ${idx + 1}:\nTitle: ${p.title}\nObjectives: ${p.objectives || 'N/A'}\nDescription: ${p.description}`
     ).join('\n\n');
 
     const prompt = `You are a semantic textual similarity (STS) engine. Compare the NEW project proposal against each EXISTING project below.
@@ -50,6 +51,9 @@ For each existing project, compute a similarity score from 0 to 100 based on:
 - Domain/field overlap
 - Objective alignment
 
+Be strict: only projects that are genuinely about the same topic/approach should score above 35.
+Similar keywords alone are NOT enough — the actual research problem and methodology must overlap.
+
 NEW PROJECT:
 Title: ${newProject.title}
 Objectives: ${newProject.objectives}
@@ -58,7 +62,7 @@ Description: ${newProject.description}
 EXISTING PROJECTS:
 ${projectList}
 
-Return similarity scores for each project.`;
+Return similarity scores for each project using the project_number (1, 2, 3, etc.).`;
 
     try {
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -70,7 +74,7 @@ Return similarity scores for each project.`;
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
           messages: [
-            { role: 'system', content: 'You are a semantic similarity scoring engine.' },
+            { role: 'system', content: 'You are a strict semantic similarity scoring engine. Only score projects highly if they genuinely address the same research problem with similar methodology. Keyword overlap alone should not result in high scores.' },
             { role: 'user', content: prompt }
           ],
           tools: [{
@@ -86,11 +90,11 @@ Return similarity scores for each project.`;
                     items: {
                       type: 'object',
                       properties: {
-                        project_id: { type: 'string' },
-                        similarity_score: { type: 'number' },
-                        reasoning: { type: 'string' }
+                        project_number: { type: 'number', description: 'The sequential number of the project (1, 2, 3, etc.)' },
+                        similarity_score: { type: 'number', description: 'Similarity score from 0 to 100' },
+                        reasoning: { type: 'string', description: 'Brief explanation of why this score was given' }
                       },
-                      required: ['project_id', 'similarity_score', 'reasoning'],
+                      required: ['project_number', 'similarity_score', 'reasoning'],
                       additionalProperties: false
                     }
                   }
@@ -107,7 +111,7 @@ Return similarity scores for each project.`;
       if (!response.ok) {
         console.error(`AI gateway error [${response.status}]:`, await response.text());
         for (const p of batch) {
-          allResults.push({ projectId: p.id, score: fallbackSimilarity(newProject, p) });
+          allResults.push({ project: p, score: fallbackSimilarity(newProject, p) });
         }
         continue;
       }
@@ -117,21 +121,35 @@ Return similarity scores for each project.`;
 
       if (toolCall?.function?.arguments) {
         const parsed = JSON.parse(toolCall.function.arguments);
+        const scoredIndices = new Set<number>();
+
         for (const item of parsed.scores) {
-          allResults.push({
-            projectId: item.project_id,
-            score: Math.min(100, Math.max(0, item.similarity_score)),
-          });
+          // Use project_number (1-based index) to map back to the batch
+          const idx = (item.project_number || 0) - 1;
+          if (idx >= 0 && idx < batch.length) {
+            scoredIndices.add(idx);
+            allResults.push({
+              project: batch[idx],
+              score: Math.min(100, Math.max(0, item.similarity_score)),
+            });
+          }
+        }
+
+        // Fallback for any projects the AI missed
+        for (let j = 0; j < batch.length; j++) {
+          if (!scoredIndices.has(j)) {
+            allResults.push({ project: batch[j], score: fallbackSimilarity(newProject, batch[j]) });
+          }
         }
       } else {
         for (const p of batch) {
-          allResults.push({ projectId: p.id, score: fallbackSimilarity(newProject, p) });
+          allResults.push({ project: p, score: fallbackSimilarity(newProject, p) });
         }
       }
     } catch (error) {
       console.error('Error computing semantic similarity:', error);
       for (const p of batch) {
-        allResults.push({ projectId: p.id, score: fallbackSimilarity(newProject, p) });
+        allResults.push({ project: p, score: fallbackSimilarity(newProject, p) });
       }
     }
   }
@@ -140,10 +158,13 @@ Return similarity scores for each project.`;
 }
 
 function fallbackSimilarity(p1: { title: string; description: string }, p2: { title: string; description: string }): number {
-  const words1 = new Set(`${p1.title} ${p1.description}`.toLowerCase().split(/\s+/));
-  const words2 = new Set(`${p2.title} ${p2.description}`.toLowerCase().split(/\s+/));
+  const stopWords = new Set(['the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'and', 'but', 'or', 'not', 'no', 'nor', 'so', 'yet', 'both', 'either', 'neither', 'each', 'every', 'all', 'any', 'few', 'more', 'most', 'other', 'some', 'such', 'than', 'too', 'very', 'just', 'about', 'this', 'that', 'these', 'those', 'it', 'its', 'which', 'who', 'whom', 'what', 'where', 'when', 'why', 'how', 'if', 'then', 'else', 'also', 'only', 'own', 'same', 'them', 'they', 'their', 'up', 'out', 'off']);
+  const tokenize = (text: string) => text.toLowerCase().split(/\W+/).filter(w => w.length > 2 && !stopWords.has(w));
+  const words1 = new Set(tokenize(`${p1.title} ${p1.description}`));
+  const words2 = new Set(tokenize(`${p2.title} ${p2.description}`));
   const intersection = new Set([...words1].filter(x => words2.has(x)));
   const union = new Set([...words1, ...words2]);
+  if (union.size === 0) return 0;
   return (intersection.size / union.size) * 100;
 }
 
@@ -195,20 +216,19 @@ serve(async (req) => {
       );
     }
 
-    // Fetch all existing projects (don't insert anything - just check)
     const { data: existingProjects, error: fetchError } = await adminClient
       .from('projects')
       .select('id, title, objectives, description, student_id, supervisor_id, year');
 
     if (fetchError) throw fetchError;
 
-    const similarityResults = await computeSemanticSimilarity(
+    const scoredProjects = await computeSemanticSimilarity(
       { title, objectives, description },
       existingProjects || [],
       lovableApiKey
     );
 
-    // Gather profile info for similar projects
+    // Gather profile info
     const allUserIds = new Set<string>();
     existingProjects?.forEach(p => {
       if (p.student_id) allUserIds.add(p.student_id);
@@ -226,22 +246,18 @@ serve(async (req) => {
       });
     }
 
-    // Build results — flag as duplicate if any score > threshold
-    const similarities: Array<{ project: Project; score: number }> = [];
+    // Build results
     let isDuplicate = false;
-    let highestMatch: { project: Project; score: number } | null = null;
+    let highestMatch: ScoredProject | null = null;
+    const similarities: ScoredProject[] = [];
 
-    for (const result of similarityResults) {
-      const project = existingProjects?.find(p => p.id === result.projectId);
-      if (!project) continue;
-
-      if (result.score > SIMILARITY_THRESHOLD) {
+    for (const sp of scoredProjects) {
+      if (sp.score > SIMILARITY_THRESHOLD) {
         isDuplicate = true;
-        similarities.push({ project, score: result.score });
+        similarities.push(sp);
       }
-
-      if (!highestMatch || result.score > highestMatch.score) {
-        highestMatch = { project, score: result.score };
+      if (!highestMatch || sp.score > highestMatch.score) {
+        highestMatch = sp;
       }
     }
 

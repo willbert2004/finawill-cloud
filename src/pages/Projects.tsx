@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchProjectPeople } from "@/lib/projectPeople";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -94,16 +95,16 @@ export default function Projects() {
       const allIds = [...new Set([...supervisorIds, ...studentIds])];
       
       if (allIds.length > 0) {
-        const { data: allProfiles } = await supabase.from('profiles').select('user_id, full_name, email, department').in('user_id', allIds);
+        const allProfiles = await fetchProjectPeople(allIds);
         const supNames: Record<string, string> = {};
         const stuNames: Record<string, string> = {};
         const stuDepts: Record<string, string> = {};
-        allProfiles?.forEach(p => {
+        Object.values(allProfiles).forEach(p => {
           if (supervisorIds.includes(p.user_id)) {
-            supNames[p.user_id] = p.full_name || p.email || 'Unknown';
+            supNames[p.user_id] = p.full_name || 'Unknown';
           }
           if (studentIds.includes(p.user_id)) {
-            stuNames[p.user_id] = p.full_name || p.email || 'Unknown';
+            stuNames[p.user_id] = p.full_name || 'Unknown';
             stuDepts[p.user_id] = p.department || '';
           }
         });

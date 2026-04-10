@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Users, Mail, FolderKanban, ChevronDown, ChevronRight } from "lucide-react";
+import { fetchProjectPeople } from "@/lib/projectPeople";
 
 interface AllocatedProject {
   id: string;
@@ -20,7 +21,7 @@ interface AllocatedProject {
 interface StudentInfo {
   user_id: string;
   full_name: string;
-  email: string;
+  email?: string;
   department?: string;
   school?: string;
 }
@@ -57,12 +58,11 @@ export function SupervisorAllocatedGroups() {
         // Get student profiles for all allocated projects
         const studentIds = [...new Set((projectsData || []).map(p => p.student_id))];
         if (studentIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("user_id, full_name, email, department, school")
-            .in("user_id", studentIds);
+          const profiles = await fetchProjectPeople(studentIds);
           const map: Record<string, StudentInfo> = {};
-          profiles?.forEach(p => { map[p.user_id] = p as StudentInfo; });
+          Object.values(profiles).forEach((p) => {
+            map[p.user_id] = p as StudentInfo;
+          });
           setStudents(map);
         }
 
@@ -191,12 +191,14 @@ export function SupervisorAllocatedGroups() {
                             <Users className="h-3.5 w-3.5 text-primary" />
                             <span className="font-medium">{student.full_name || "Unknown"}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Mail className="h-3.5 w-3.5 text-primary" />
-                            <a href={`mailto:${student.email}`} className="text-primary hover:underline text-xs">
-                              {student.email}
-                            </a>
-                          </div>
+                          {student.email && (
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-3.5 w-3.5 text-primary" />
+                              <a href={`mailto:${student.email}`} className="text-primary hover:underline text-xs">
+                                {student.email}
+                              </a>
+                            </div>
+                          )}
                           {student.department && (
                             <p className="text-xs text-muted-foreground">Dept: {student.department}</p>
                           )}

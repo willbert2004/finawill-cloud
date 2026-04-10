@@ -50,6 +50,18 @@ interface DuplicateCheckResult {
   highestSimilarity: number;
 }
 
+const normalizeCategory = (value: string) => value.trim().toLowerCase();
+
+const getStoredCategory = (project: { keywords?: string[] | null }) => {
+  const keywords = project.keywords || [];
+  return PROJECT_CATEGORIES.find((category) =>
+    keywords.some((keyword) => normalizeCategory(keyword) === normalizeCategory(category))
+  ) || "";
+};
+
+const buildProjectKeywords = (category: string) =>
+  category.trim() ? [category.trim()] : [];
+
 export default function CreateProject() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -81,7 +93,7 @@ export default function CreateProject() {
             objectives: data.objectives || '',
             description: data.description,
             department: data.department || '',
-            category: (data as any).category || '',
+            category: getStoredCategory(data),
           });
           setResubmitFeedback(data.rejection_reason);
         }
@@ -154,9 +166,9 @@ export default function CreateProject() {
       if (resubmitId) {
         const { error } = await supabase.from('projects').update({
           title: formData.title, description: formData.description, objectives: formData.objectives,
-          department: formData.department, category: formData.category,
+          department: formData.department, keywords: buildProjectKeywords(formData.category),
           status: 'pending', rejection_reason: null,
-        } as any).eq('id', resubmitId);
+        }).eq('id', resubmitId);
         if (error) throw error;
         try {
           const { data: allocData } = await supabase.functions.invoke('smart-allocation', { body: { action: 'auto_allocate_project', projectId: resubmitId } });
@@ -167,11 +179,12 @@ export default function CreateProject() {
       } else {
         const { data: project, error } = await supabase.from('projects').insert({
           title: formData.title, description: formData.description, objectives: formData.objectives,
-          student_id: user.id, department: formData.department, category: formData.category,
+          student_id: user.id, department: formData.department,
+          keywords: buildProjectKeywords(formData.category),
           status: isFinished ? 'completed' : 'pending',
           similarity_score: duplicateResult?.highestSimilarity || 0,
           is_duplicate: false,
-        } as any).select().single();
+        }).select().single();
         if (error) throw error;
         if (!isFinished && project) {
           try {
@@ -282,6 +295,11 @@ export default function CreateProject() {
                 <Textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} placeholder="Describe methodology and expected outcomes..." rows={5} required />
               </div>
 
+              <div className="flex justify-end">
+                <Button type="button" variant="outline" size="sm" onClick={() => setFormData({ title: "", objectives: "", description: "", department: "", category: "" })}>
+                  Clear All Fields
+                </Button>
+              </div>
 
               {/* Duplicate Check Section */}
               {!isFinished && !resubmitId && (

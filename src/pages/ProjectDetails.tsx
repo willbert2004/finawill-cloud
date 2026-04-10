@@ -13,6 +13,7 @@ import {
   XCircle, Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { fetchProjectPeople } from "@/lib/projectPeople";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -74,22 +75,17 @@ export default function ProjectDetails() {
 
       setProfile(profileData);
       setProject(projectData as Project);
+      setStudentName("");
+      setSupervisorName("");
 
       // Fetch student and supervisor names
       const ids = [projectData.student_id, projectData.supervisor_id].filter(Boolean);
       if (ids.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, email")
-          .in("user_id", ids);
-        profiles?.forEach((p) => {
-          if (p.user_id === projectData.student_id) {
-            setStudentName(p.full_name || p.email || "Unknown");
-          }
-          if (p.user_id === projectData.supervisor_id) {
-            setSupervisorName(p.full_name || p.email || "Unknown");
-          }
-        });
+        const people = await fetchProjectPeople(ids);
+        setStudentName(people[projectData.student_id]?.full_name || "");
+        if (projectData.supervisor_id) {
+          setSupervisorName(people[projectData.supervisor_id]?.full_name || "");
+        }
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

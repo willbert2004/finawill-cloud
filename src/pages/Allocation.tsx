@@ -27,6 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import SupervisorList from "@/components/SupervisorList";
 import GroupManagement from "@/components/GroupManagement";
 import AllocationFilters from "@/components/AllocationFilters";
+import { fetchProjectPeople } from "@/lib/projectPeople";
 
 interface PendingAllocation {
   id: string;
@@ -219,20 +220,18 @@ export default function Allocation() {
 
       // Batch fetch all needed profiles in one query
       const allProfileIds = [...new Set([...supervisorUserIds, ...allStudentIds])];
-      const { data: allProfiles } = allProfileIds.length > 0
-        ? await supabase
-            .from("profiles")
-            .select("user_id, full_name, email")
-            .in("user_id", allProfileIds)
-        : { data: [] };
+      const allProfiles = allProfileIds.length > 0 ? await fetchProjectPeople(allProfileIds) : {};
 
-      const profileMap = new Map((allProfiles || []).map(p => [p.user_id, p]));
+      const profileMap = new Map(Object.values(allProfiles).map(p => [p.user_id, p]));
 
       // Build supervisors with profiles
-      const supervisorsWithProfiles = (supervisorRes.data || []).map(sup => ({
-        ...sup,
-        profiles: profileMap.get(sup.user_id) || { user_id: sup.user_id, full_name: '', email: '' }
-      }));
+      const supervisorsWithProfiles = (supervisorRes.data || []).map(sup => {
+        const p = profileMap.get(sup.user_id);
+        return {
+          ...sup,
+          profiles: { user_id: sup.user_id, full_name: p?.full_name || '', email: p?.email || '' }
+        };
+      });
       setSupervisors(supervisorsWithProfiles);
 
       // Build pending allocations with project + student profile
