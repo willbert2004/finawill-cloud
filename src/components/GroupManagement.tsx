@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Users, Plus, Loader2, Check, X, Sparkles, Trash2, Mail, Phone, Clock, MapPin, Building2, Search, Shield, AlertTriangle, CheckCircle, FileText } from "lucide-react";
 import MilestoneProgress from "./MilestoneProgress";
 import { Progress } from "@/components/ui/progress";
+import { callSmartAllocation, formatSupervisorList } from "@/lib/smartAllocation";
 
 const PROJECT_CATEGORIES = [
   "Artificial Intelligence", "Machine Learning", "Web Development", "Mobile Development",
@@ -78,6 +79,12 @@ export default function GroupManagement() {
   const [gpDuplicateChecked, setGpDuplicateChecked] = useState(false);
   const [gpSubmitting, setGpSubmitting] = useState(false);
 
+  interface GroupProjectAllocationResult {
+    allocated: boolean;
+    matchedSupervisorNames?: string[];
+    message?: string;
+  }
+
   useEffect(() => { setGpDuplicateChecked(false); setGpDuplicateResult(null); }, [gpForm.title, gpForm.objectives, gpForm.description]);
 
   const handleGroupDuplicateCheck = async () => {
@@ -127,9 +134,17 @@ export default function GroupManagement() {
       if (error) throw error;
       // Smart allocation
       try {
-        await supabase.functions.invoke('smart-allocation', { body: { action: 'auto_allocate_project', projectId: project.id } });
-      } catch (e) { console.error('Auto-allocation failed:', e); }
-      toast({ title: "Group Project Submitted!", description: "Matched supervisor will be notified." });
+        const allocation = await callSmartAllocation<GroupProjectAllocationResult>({ action: 'auto_allocate_project', projectId: project.id });
+        toast({
+          title: "Group Project Submitted!",
+          description: allocation.matchedSupervisorNames?.length
+            ? `Sent to ${formatSupervisorList(allocation.matchedSupervisorNames)} for review.`
+            : allocation.message || "Submitted successfully.",
+        });
+      } catch (e: any) {
+        console.error('Auto-allocation failed:', e);
+        toast({ title: "Group Project Submitted", description: e.message, variant: "destructive" });
+      }
       setProjectDialogGroupId(null);
       setGpForm({ title: "", objectives: "", description: "", department: "", category: "" });
       setGpDuplicateResult(null); setGpDuplicateChecked(false);
@@ -313,31 +328,22 @@ export default function GroupManagement() {
 
   const handleAllocateGroup = async (groupId: string) => {
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'allocate_group', groupId }
-      });
-      if (error) throw error;
-      toast({ title: "Allocation suggestion created", description: "Supervisor has been notified" });
+      const data = await callSmartAllocation<{ supervisorName?: string }>({ action: 'allocate_group', groupId });
+      toast({ title: "Allocation suggestion created", description: data.supervisorName ? `${data.supervisorName} has been notified` : "Supervisor has been notified" });
       fetchData();
     } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
   };
 
   const handleAcceptAllocation = async (allocationId: string) => {
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'accept_group_allocation', allocationId }
-      });
-      if (error) throw error;
+      await callSmartAllocation({ action: 'accept_group_allocation', allocationId });
       toast({ title: "Group allocation accepted" }); fetchData();
     } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
   };
 
   const handleRejectAllocation = async (allocationId: string) => {
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'reject_group_allocation', allocationId }
-      });
-      if (error) throw error;
+      await callSmartAllocation({ action: 'reject_group_allocation', allocationId });
       toast({ title: "Group allocation rejected" }); fetchData();
     } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
   };

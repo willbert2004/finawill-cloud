@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchProjectPeople } from "@/lib/projectPeople";
+import { callSmartAllocation } from "@/lib/smartAllocation";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -52,6 +53,7 @@ export default function ProjectDetails() {
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [feedbackAction, setFeedbackAction] = useState<"reject" | "revision">("revision");
   const [feedbackText, setFeedbackText] = useState("");
+  const [pendingAllocation, setPendingAllocation] = useState<{ id: string; status: string; match_reason?: string; match_score?: number } | null>(null);
 
   useEffect(() => {
     if (!user || !projectId) return;
@@ -62,9 +64,15 @@ export default function ProjectDetails() {
     if (!projectId || !user) return;
     setLoading(true);
     try {
-      const [{ data: profileData }, { data: projectData }] = await Promise.all([
+      const [{ data: profileData }, { data: projectData }, { data: allocationData }] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("projects").select("*").eq("id", projectId).single(),
+        supabase
+          .from("pending_allocations")
+          .select("id, status, match_reason, match_score")
+          .eq("project_id", projectId)
+          .eq("supervisor_id", user.id)
+          .maybeSingle(),
       ]);
 
       if (!projectData) {
@@ -75,6 +83,7 @@ export default function ProjectDetails() {
 
       setProfile(profileData);
       setProject(projectData as Project);
+      setPendingAllocation((allocationData as any) || null);
       setStudentName("");
       setSupervisorName("");
 
@@ -98,11 +107,8 @@ export default function ProjectDetails() {
     if (!project) return;
     setActionLoading(true);
     try {
-      const { error } = await supabase.functions.invoke("smart-allocation", {
-        body: { action: "approve_project", projectId: project.id },
-      });
-      if (error) throw error;
-      toast({ title: "Project Approved", description: "The student has been notified." });
+      const data = await callSmartAllocation<{ supervisorName?: string }>({ action: "approve_project", projectId: project.id });
+      toast({ title: "Project Approved", description: data.supervisorName ? `The student has been notified and assigned to ${data.supervisorName}.` : "The student has been notified." });
       fetchProject();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -118,13 +124,12 @@ export default function ProjectDetails() {
     }
     setActionLoading(true);
     try {
-      const action = feedbackAction === "reject"
-        ? "reject_project_with_feedback"
-        : "reject_project_with_feedback";
-      const { error } = await supabase.functions.invoke("smart-allocation", {
-        body: { action, projectId: project.id, rejectionReason: feedbackText },
+      await callSmartAllocation({
+        action: feedbackAction === "reject" ? "reject_project_with_feedback" : "request_revision",
+        projectId: project.id,
+        rejectionReason: feedbackText,
+        reviewOutcome: feedbackAction,
       });
-      if (error) throw error;
       toast({
         title: feedbackAction === "reject" ? "Project Rejected" : "Revision Requested",
         description: "The student has been notified with your feedback.",
@@ -250,12 +255,16 @@ export default function ProjectDetails() {
   const isStudent = profile?.user_type === "student";
   const isAdmin = profile?.user_type === "admin";
   const canReview =
-    isSupervisor && project.status === "pending" && !project.supervisor_id && !project.is_duplicate;
+    ((isSupervisor && pendingAllocation?.status === "pending") || isAdmin) &&
+    project.status === "pending" &&
+    !project.supervisor_id &&
+    !project.is_duplicate;
   const canFinalize =
     isSupervisor &&
     project.supervisor_id === user?.id &&
     ["approved", "in_progress"].includes(project.status);
   const canResubmit = isStudent && project.status === "needs_revision";
+  const projectCategory = project.category || project.keywords?.[0] || "";
 
   return (
     <AuthenticatedLayout>
@@ -320,7 +329,7 @@ export default function ProjectDetails() {
               </CardContent>
             </Card>
           )}
-          {(project as any).category && (
+          {projectCategory && (
             <Card>
               <CardContent className="p-4 flex items-center gap-3">
                 <FileText className="h-5 w-5 text-primary" />
@@ -328,7 +337,7 @@ export default function ProjectDetails() {
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
                     Category
                   </p>
-                  <p className="text-sm font-medium">{(project as any).category}</p>
+                  <p className="text-sm font-medium">{projectCategory}</p>
                 </div>
               </CardContent>
             </Card>
@@ -393,6 +402,19 @@ export default function ProjectDetails() {
                   Address this feedback and resubmit your project below.
                 </p>
               )}
+            </CardContent>
+          </Card>
+        )}
+
+        {pendingAllocation?.match_reason && canReview && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" /> Why this project matched you
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{pendingAllocation.match_reason}</p>
             </CardContent>
           </Card>
         )}

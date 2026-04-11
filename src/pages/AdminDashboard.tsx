@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, FolderKanban, GitBranch, UserCog, Activity, Shield, Sparkles, ArrowUpRight, Clock, BarChart3, Crown, AlertTriangle, Server, CheckCircle, Target, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { callSmartAllocation } from '@/lib/smartAllocation';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -174,13 +175,10 @@ const AdminDashboard = () => {
   const handleBulkAutoAllocate = async () => {
     setBulkAllocating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'bulk_auto_allocate' }
-      });
-      if (error) throw error;
+      const data = await callSmartAllocation<{ allocated: number; total: number }>({ action: 'bulk_auto_allocate' });
       toast({
         title: 'Bulk Allocation Complete',
-        description: `Assigned supervisors to ${data.allocated} out of ${data.total} unassigned projects`,
+        description: `Queued ${data.allocated} out of ${data.total} unassigned projects for matched supervisor review`,
       });
     } catch (error: any) {
       toast({ title: 'Error', description: error.message || 'Failed to bulk allocate', variant: 'destructive' });
