@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
 import {
   CheckCircle, Clock, MessageSquare, User, Building, Calendar,
-  FileText, AlertTriangle, Award, Loader2, ArrowLeft, RefreshCw,
+  FileText, AlertTriangle, Award, Loader2, ArrowLeft, RefreshCw, Sparkles,
   XCircle, Send,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";

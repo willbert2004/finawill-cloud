@@ -342,7 +342,7 @@ export default function Allocation() {
     try {
       setGenerating(true);
       const data = await callSmartAllocation<{ allocated: number; total: number; manualReviewCount?: number; message?: string }>({ action: 'generate_suggestions' });
-      const allocated = data.allocated || data.suggestions_count || 0;
+      const allocated = data.allocated || 0;
       toast({ 
         title: "Smart Allocation Complete", 
         description: allocated > 0 
