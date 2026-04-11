@@ -13,6 +13,7 @@ import { Send, Loader2, CheckCircle, Sparkles, AlertTriangle, Search, Shield, Us
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { callSmartAllocation, formatSupervisorList } from "@/lib/smartAllocation";
 
 const PROJECT_CATEGORIES = [
   "Artificial Intelligence",
@@ -50,6 +51,17 @@ interface DuplicateCheckResult {
   highestSimilarity: number;
 }
 
+interface AllocationResult {
+  allocated: boolean;
+  category?: string;
+  manualAssignmentRequired?: boolean;
+  matchedSupervisorNames?: string[];
+  message?: string;
+  notifiedSupervisors?: number;
+  topMatchReason?: string;
+  topMatchScore?: number;
+}
+
 const normalizeCategory = (value: string) => value.trim().toLowerCase();
 
 const getStoredCategory = (project: { keywords?: string[] | null }) => {
@@ -71,7 +83,7 @@ export default function CreateProject() {
   const [checking, setChecking] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [allocationResult, setAllocationResult] = useState<any>(null);
+  const [allocationResult, setAllocationResult] = useState<AllocationResult | null>(null);
   const [formData, setFormData] = useState({ title: "", objectives: "", description: "", department: "", category: "" });
   const [submitting, setSubmitting] = useState(false);
   const [resubmitId, setResubmitId] = useState<string | null>(null);
@@ -171,9 +183,12 @@ export default function CreateProject() {
         }).eq('id', resubmitId);
         if (error) throw error;
         try {
-          const { data: allocData } = await supabase.functions.invoke('smart-allocation', { body: { action: 'auto_allocate_project', projectId: resubmitId } });
+          const allocData = await callSmartAllocation<AllocationResult>({ action: 'auto_allocate_project', projectId: resubmitId });
           setAllocationResult(allocData);
-        } catch (e) { console.error('Auto-allocation failed:', e); }
+        } catch (e: any) {
+          console.error('Auto-allocation failed:', e);
+          setAllocationResult({ allocated: false, message: e.message });
+        }
         setSubmitted(true);
         toast({ title: "Project Resubmitted!" });
       } else {
@@ -188,9 +203,12 @@ export default function CreateProject() {
         if (error) throw error;
         if (!isFinished && project) {
           try {
-            const { data: allocData } = await supabase.functions.invoke('smart-allocation', { body: { action: 'auto_allocate_project', projectId: project.id } });
+            const allocData = await callSmartAllocation<AllocationResult>({ action: 'auto_allocate_project', projectId: project.id });
             setAllocationResult(allocData);
-          } catch (e) { console.error('Auto-allocation failed:', e); }
+          } catch (e: any) {
+            console.error('Auto-allocation failed:', e);
+            setAllocationResult({ allocated: false, message: e.message });
+          }
         }
         setSubmitted(true);
         toast({ title: isFinished ? "Project Added!" : "Project Submitted!" });
@@ -212,18 +230,27 @@ export default function CreateProject() {
               </div>
               <div>
                 <h2 className="text-2xl font-bold mb-2">{isFinished ? "Project Added!" : "Submitted Successfully!"}</h2>
-                {!isFinished && allocationResult?.allocated ? (
+                {!isFinished && allocationResult?.matchedSupervisorNames?.length ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">Your project has been matched to a supervisor based on expertise.</p>
+                    <p className="text-sm text-muted-foreground">
+                      Your project has been sent to the matching supervisor{allocationResult.matchedSupervisorNames.length > 1 ? "s" : ""} for review.
+                    </p>
                     <div className="bg-accent/50 rounded-lg p-4 text-left">
-                      <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-primary" /><span className="font-semibold text-sm">Match Details</span></div>
-                      <p className="text-xs text-muted-foreground">Score: <span className="font-medium text-foreground">{allocationResult.matchScore}%</span></p>
-                      <p className="text-xs text-muted-foreground">Reason: <span className="font-medium text-foreground">{allocationResult.matchReason}</span></p>
+                      <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-primary" /><span className="font-semibold text-sm">Routed Supervisors</span></div>
+                      <p className="text-xs text-muted-foreground">
+                        Sent to <span className="font-medium text-foreground">{formatSupervisorList(allocationResult.matchedSupervisorNames)}</span>
+                      </p>
+                      {allocationResult.category && (
+                        <p className="text-xs text-muted-foreground">Category: <span className="font-medium text-foreground">{allocationResult.category}</span></p>
+                      )}
+                      {allocationResult.topMatchReason && (
+                        <p className="text-xs text-muted-foreground">Top match reason: <span className="font-medium text-foreground">{allocationResult.topMatchReason}</span></p>
+                      )}
                     </div>
-                    <p className="text-xs text-muted-foreground">The supervisor will review your project and accept or request revisions.</p>
+                    <p className="text-xs text-muted-foreground">The supervisor will review your project and accept, reject, or request revisions.</p>
                   </div>
                 ) : !isFinished ? (
-                  <p className="text-sm text-muted-foreground">Pending supervisor assignment. You'll be notified when a supervisor reviews your project.</p>
+                  <p className="text-sm text-muted-foreground">{allocationResult?.message || "Pending supervisor assignment. You'll be notified when a supervisor reviews your project."}</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">Added to the repository.</p>
                 )}

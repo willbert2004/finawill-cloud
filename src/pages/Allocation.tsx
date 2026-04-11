@@ -28,6 +28,7 @@ import SupervisorList from "@/components/SupervisorList";
 import GroupManagement from "@/components/GroupManagement";
 import AllocationFilters from "@/components/AllocationFilters";
 import { fetchProjectPeople } from "@/lib/projectPeople";
+import { callSmartAllocation } from "@/lib/smartAllocation";
 
 interface PendingAllocation {
   id: string;
@@ -327,11 +328,7 @@ export default function Allocation() {
 
   const handleManualAssign = async (projectId: string) => {
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'manual_assign', projectId, supervisorId: user!.id }
-      });
-
-      if (error) throw error;
+      await callSmartAllocation({ action: 'manual_assign', projectId, supervisorId: user!.id });
 
       toast({ title: "Project assigned", description: "The project has been manually assigned to you" });
       fetchData();
@@ -344,15 +341,12 @@ export default function Allocation() {
   const handleGenerateSuggestions = async () => {
     try {
       setGenerating(true);
-      const { data, error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'generate_suggestions' }
-      });
-      if (error) throw error;
-      const allocated = data.allocated || data.suggestions_count || 0;
+      const data = await callSmartAllocation<{ allocated: number; total: number; manualReviewCount?: number; message?: string }>({ action: 'generate_suggestions' });
+      const allocated = data.allocated || 0;
       toast({ 
         title: "Smart Allocation Complete", 
         description: allocated > 0 
-          ? `Successfully assigned supervisors to ${allocated} project${allocated !== 1 ? 's' : ''} using expertise matching.`
+          ? `Queued ${allocated} project${allocated !== 1 ? 's' : ''} for matched supervisor review.`
           : data.message || 'No projects could be matched. Check supervisor availability and expertise areas.'
       });
       fetchData();
@@ -365,11 +359,7 @@ export default function Allocation() {
 
   const handleUnassign = async (projectId: string) => {
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', {
-        body: { action: 'unassign', projectId }
-      });
-
-      if (error) throw error;
+      await callSmartAllocation({ action: 'unassign', projectId });
 
       toast({ title: "Project unassigned", description: "The project is now available for reassignment" });
       fetchData();
@@ -383,15 +373,11 @@ export default function Allocation() {
     if (!selectedSupervisor || !selectedProjectForReassign) return;
 
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', {
-        body: { 
-          action: 'reassign', 
-          projectId: selectedProjectForReassign,
-          newSupervisorId: selectedSupervisor 
-        }
+      await callSmartAllocation({ 
+        action: 'reassign', 
+        projectId: selectedProjectForReassign,
+        newSupervisorId: selectedSupervisor 
       });
-
-      if (error) throw error;
 
       toast({ title: "Project reassigned", description: "The project has been reassigned successfully" });
       setReassignDialogOpen(false);
@@ -793,9 +779,7 @@ export default function Allocation() {
                             <Button 
                               onClick={() => {
                                 if (selectedSupervisor && project.id) {
-                                  supabase.functions.invoke('smart-allocation', {
-                                    body: { action: 'manual_assign', projectId: project.id, supervisorId: selectedSupervisor }
-                                  }).then(() => {
+                                  callSmartAllocation({ action: 'manual_assign', projectId: project.id, supervisorId: selectedSupervisor }).then(() => {
                                     toast({ title: "Supervisor assigned successfully" });
                                     setSelectedSupervisor("");
                                     fetchData();

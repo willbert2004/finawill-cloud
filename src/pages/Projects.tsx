@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fetchProjectPeople } from "@/lib/projectPeople";
+import { callSmartAllocation } from "@/lib/smartAllocation";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -120,8 +121,7 @@ export default function Projects() {
   const handleApproveProject = async (projectId: string) => {
     setActionLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', { body: { action: 'approve_project', projectId } });
-      if (error) throw error;
+      await callSmartAllocation({ action: 'approve_project', projectId });
       toast({ title: "Project Approved", description: "The student has been notified." });
       fetchData();
     } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
@@ -132,8 +132,7 @@ export default function Projects() {
     if (!rejectionReason.trim()) { toast({ title: "Feedback Required", variant: "destructive" }); return; }
     setActionLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('smart-allocation', { body: { action: 'reject_project_with_feedback', projectId: rejectProjectId, rejectionReason } });
-      if (error) throw error;
+      await callSmartAllocation({ action: 'request_revision', projectId: rejectProjectId, rejectionReason, reviewOutcome: 'revision' });
       toast({ title: "Feedback Sent" });
       setRejectDialogOpen(false); setRejectionReason(""); setRejectProjectId(""); fetchData();
     } catch (error: any) { toast({ title: "Error", description: error.message, variant: "destructive" }); }
