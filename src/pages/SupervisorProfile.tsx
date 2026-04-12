@@ -75,8 +75,8 @@ export default function SupervisorProfile() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
     try {
-      await supabase.from('profiles').update({ full_name: profile.full_name }).eq('user_id', user?.id);
       const researchAreasArray = researchAreasText.split(',').map(a => a.trim()).filter(a => a.length > 0);
+      await supabase.from('profiles').update({ full_name: profile.full_name, research_areas: researchAreasArray, department: profile.department }).eq('user_id', user?.id);
       await supabase.from('supervisors').upsert({ user_id: user?.id, research_areas: researchAreasArray, office_location: profile.office_location, max_projects: profile.max_projects, department: profile.department }, { onConflict: 'user_id' });
       toast({ title: 'Success', description: 'Profile updated' });
     } catch (error: any) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); }
