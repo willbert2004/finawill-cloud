@@ -167,7 +167,7 @@ const UserManagement = () => {
   };
 
   const handleRemoveRole = async (userId: string, role: AppRole) => {
-    if (role === 'super_admin') {
+    if ((role as string) === 'super_admin') {
       toast({ title: 'Cannot remove super admin role', variant: 'destructive' });
       return;
     }

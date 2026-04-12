@@ -119,9 +119,9 @@ export function MeetingScheduler() {
         title,
         description: description || null,
         meeting_link: meetingLink,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: parseInt(duration),
-      });
+        meeting_date: selectedDate.toISOString().split('T')[0],
+        meeting_time: selectedTime,
+      } as any);
 
       if (error) throw error;
       toast.success("Meeting scheduled! Students have been notified.");
