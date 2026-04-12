@@ -239,57 +239,53 @@ serve(async (req) => {
         });
       }
 
+      // Auto-assign to the best matching supervisor directly
+      const best = matches[0];
+
       // Clean old pending_allocations for this project
       await admin.from("pending_allocations").delete().eq("project_id", projectId);
 
-      // Insert pending_allocations for each match
-      const pendingRows = matches.map((m) => ({
-        project_id: projectId,
-        supervisor_id: m.userId,
-        match_score: m.score,
-        match_reason: m.reason,
-        status: "pending",
-      }));
+      // Force-assign project
+      await admin.from("projects").update({
+        supervisor_id: best.userId,
+        status: "approved",
+        rejection_reason: null,
+      }).eq("id", projectId);
 
-      const { error: pendingErr } = await admin.from("pending_allocations").insert(pendingRows);
-      if (pendingErr) {
-        console.error("[smart-allocation] pending_allocations insert error:", pendingErr.message);
-        // Continue anyway — notifications are more important
-      }
+      // Update supervisor project counts
+      const { data: activeProjects } = await admin
+        .from("projects").select("id").eq("supervisor_id", best.userId).in("status", ["approved", "in_progress"]);
+      const count = activeProjects?.length ?? 0;
+      await admin.from("supervisors").update({ current_projects: count }).eq("user_id", best.userId);
+      await admin.from("profiles").update({ current_projects: count }).eq("user_id", best.userId);
 
-      // Notify matching supervisors
-      const supNotifications = matches.map((m) => ({
-        user_id: m.userId,
-        title: "New Project for Review",
-        message: `Project "${project.title}" (${category}) matches your expertise. Click to review.`,
-        type: "allocation",
-        link: `/projects/${projectId}`,
-      }));
-
-      // Notify student
-      const names = matches.map((m) => m.name);
-      const nameList = names.length === 1 ? names[0] : names.length === 2 ? `${names[0]} and ${names[1]}` : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-
-      supNotifications.push({
-        user_id: project.student_id,
-        title: "Project Submitted Successfully",
-        message: `Your project "${project.title}" has been sent to ${nameList} for review.`,
-        type: "allocation",
-        link: `/projects/${projectId}`,
-      });
-
-      const { error: notifErr } = await admin.from("notifications").insert(supNotifications);
-      if (notifErr) console.error("[smart-allocation] notification error:", notifErr.message);
+      // Notify supervisor and student
+      await admin.from("notifications").insert([
+        {
+          user_id: best.userId,
+          title: "New Project Assigned",
+          message: `Project "${project.title}" (${category}) has been assigned to you based on your expertise.`,
+          type: "allocation",
+          link: `/projects/${projectId}`,
+        },
+        {
+          user_id: project.student_id,
+          title: "Project Submitted & Assigned",
+          message: `Your project "${project.title}" has been assigned to ${best.name}.`,
+          type: "project",
+          link: `/projects/${projectId}`,
+        },
+      ]);
 
       return ok({
         allocated: true,
         category,
-        matchedSupervisorNames: names,
-        notifiedSupervisors: names.length,
+        matchedSupervisorNames: [best.name],
+        notifiedSupervisors: 1,
         manualAssignmentRequired: false,
-        topMatchScore: matches[0].score,
-        topMatchReason: matches[0].reason,
-        message: `Project sent to ${nameList} for review.`,
+        topMatchScore: best.score,
+        topMatchReason: best.reason,
+        message: `Project assigned to ${best.name}.`,
       });
     }
 
