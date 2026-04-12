@@ -39,8 +39,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin']}><DashboardHub /></ProtectedRoute>} />
-            <Route path="/my-profile" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin']}><MyProfile /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin', 'super_admin']}><DashboardHub /></ProtectedRoute>} />
+            <Route path="/my-profile" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin', 'super_admin']}><MyProfile /></ProtectedRoute>} />
 
             {/* Student routes */}
             <Route path="/projects" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin']}><Projects /></ProtectedRoute>} />
