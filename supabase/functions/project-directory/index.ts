@@ -17,17 +17,21 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const authHeader = req.headers.get("Authorization");
 
-    if (!authHeader) {
-      throw new Error("Missing authorization header");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Not authenticated" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user } } = await authClient.auth.getUser();
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: authError } = await authClient.auth.getClaims(token);
 
-    if (!user) {
+    if (authError || !claimsData?.claims?.sub) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
