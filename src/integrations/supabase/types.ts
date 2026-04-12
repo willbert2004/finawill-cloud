@@ -940,6 +940,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_super: { Args: { _user_id: string }; Returns: boolean }
       is_supervisor: { Args: { _user_id: string }; Returns: boolean }
       user_owns_group: {
         Args: { _group_id: string; _user_id: string }
