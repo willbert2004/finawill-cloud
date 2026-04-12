@@ -561,9 +561,24 @@ serve(async (req) => {
         }
       }
 
+      // Notify the admin who triggered the auto-assign
+      if (allocated > 0) {
+        allNotifications.push({
+          user_id: user.id,
+          title: "Auto-Assignment Complete",
+          message: `Successfully assigned ${allocated} project(s) to matching supervisors. ${skipped > 0 ? `${skipped} project(s) could not be matched.` : ""}`,
+          type: "allocation",
+          link: "/allocation",
+        });
+      }
+
       // Send all notifications in one batch
       if (allNotifications.length > 0) {
-        await admin.from("notifications").insert(allNotifications);
+        const { error: notifErr } = await admin.from("notifications").insert(allNotifications);
+        if (notifErr) {
+          console.error("[bulk] notification insert error:", notifErr.message);
+        }
+        console.log(`[bulk] inserted ${allNotifications.length} notifications`);
       }
 
       return ok({
