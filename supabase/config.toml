@@ -1,13 +1,1 @@
-project_id = "glrwzmmljjojmwnuiafc"
-
-[functions.check-duplicate]
-verify_jwt = false
-
-[functions.smart-allocation]
-verify_jwt = true
-
-[functions.create-supervisor]
-verify_jwt = false
-
-[functions.populate-objectives]
-verify_jwt = false
+project_id = "oahrwcwzjomlumikrghp"
