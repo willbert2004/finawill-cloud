@@ -449,65 +449,132 @@ serve(async (req) => {
 
     /* ═══════════════════════════════════════════
        ACTION: bulk_auto_allocate / generate_suggestions
-       Admin routes all unassigned pending projects
+       Admin force-assigns all unassigned pending projects
+       to their best matching supervisor (no accept/reject).
+       Supervisors at max capacity are skipped.
        ═══════════════════════════════════════════ */
     if (action === "bulk_auto_allocate" || action === "generate_suggestions") {
       if (role !== "admin") return fail("Unauthorized role");
 
       const { data: pendingProjects } = await admin
-        .from("projects").select("id").is("supervisor_id", null).eq("status", "pending");
+        .from("projects").select("*").is("supervisor_id", null).eq("status", "pending");
+
+      if (!pendingProjects || pendingProjects.length === 0) {
+        return ok({ allocated: 0, total: 0, skipped: 0, message: "No pending projects to allocate." });
+      }
+
+      // Fetch all supervisors + profiles once
+      const { data: sups } = await admin.from("supervisors").select("user_id, research_areas, max_projects, current_projects");
+      const { data: profs } = await admin.from("profiles").select("user_id, full_name, email, research_areas, max_projects, current_projects").eq("user_type", "supervisor");
+      const pm = new Map((profs ?? []).map((pr: any) => [pr.user_id, pr]));
+
+      // Build a mutable capacity tracker so we don't over-allocate in one batch
+      const capacityMap = new Map<string, { current: number; max: number }>();
+      for (const sup of sups ?? []) {
+        const prof = pm.get(sup.user_id);
+        const maxP = Number(sup.max_projects ?? prof?.max_projects ?? 5) || 5;
+        const curP = Number(sup.current_projects ?? prof?.current_projects ?? 0) || 0;
+        capacityMap.set(sup.user_id, { current: curP, max: maxP });
+      }
 
       let allocated = 0;
-      let manual = 0;
+      let skipped = 0;
+      const allNotifications: any[] = [];
 
-      for (const p of pendingProjects ?? []) {
+      for (const project of pendingProjects) {
         try {
-          // Recursively call the routing logic
-          const innerReq = new Request(req.url, {
-            method: "POST",
-            headers: req.headers,
-            body: JSON.stringify({ action: "auto_allocate_project", projectId: p.id }),
-          });
-          // Just inline the logic instead
-          const project = (await admin.from("projects").select("*").eq("id", p.id).single()).data;
-          if (!project) continue;
-
           const category = getCategory(project);
-          if (!category) { manual++; continue; }
+          if (!category) { skipped++; continue; }
 
-          const { data: sups } = await admin.from("supervisors").select("user_id, research_areas, max_projects, current_projects");
-          const { data: profs } = await admin.from("profiles").select("user_id, full_name, email, research_areas, max_projects, current_projects").eq("user_type", "supervisor");
-          const pm = new Map((profs ?? []).map((pr: any) => [pr.user_id, pr]));
+          // Score all supervisors for this project
+          type Match = { userId: string; name: string; score: number; reason: string };
+          const matches: Match[] = [];
 
-          let found = false;
           for (const sup of sups ?? []) {
             const prof = pm.get(sup.user_id);
             if (!prof) continue;
+            const cap = capacityMap.get(sup.user_id)!;
+            if (cap.current >= cap.max) continue; // at capacity
+
             const areas = [...((sup.research_areas as string[]) ?? []), ...((prof.research_areas as string[]) ?? [])];
-            const maxP = Number(sup.max_projects ?? prof.max_projects ?? 5) || 5;
-            const curP = Number(sup.current_projects ?? prof.current_projects ?? 0) || 0;
-            if (curP >= maxP) continue;
-            for (const area of areas) {
-              if (categoryMatchScore(category, area) > 0) { found = true; break; }
+            const uniqueAreas = [...new Set(areas.filter(Boolean))];
+
+            let bestScore = 0;
+            let bestArea = "";
+            for (const area of uniqueAreas) {
+              const s = categoryMatchScore(category, area);
+              if (s > bestScore) { bestScore = s; bestArea = area; }
             }
-            if (found) break;
+
+            if (bestScore > 0) {
+              matches.push({
+                userId: sup.user_id,
+                name: prof.full_name || prof.email || "Supervisor",
+                score: bestScore,
+                reason: `Expertise "${bestArea}" matches category "${category}" (score: ${bestScore})`,
+              });
+            }
           }
 
-          if (found) allocated++;
-          else manual++;
+          matches.sort((a, b) => b.score - a.score);
+
+          if (matches.length === 0) { skipped++; continue; }
+
+          const best = matches[0];
+
+          // Force-assign project to best supervisor
+          await admin.from("projects").update({
+            supervisor_id: best.userId,
+            status: "approved",
+            rejection_reason: null,
+          }).eq("id", project.id);
+
+          // Clean up any pending allocations
+          await admin.from("pending_allocations").delete().eq("project_id", project.id);
+
+          // Update capacity tracker
+          const cap = capacityMap.get(best.userId)!;
+          cap.current++;
+
+          // Update supervisor counts in DB
+          await admin.from("supervisors").update({ current_projects: cap.current }).eq("user_id", best.userId);
+          await admin.from("profiles").update({ current_projects: cap.current }).eq("user_id", best.userId);
+
+          // Queue notifications
+          allNotifications.push({
+            user_id: best.userId,
+            title: "Project Assigned to You",
+            message: `Admin has assigned project "${project.title}" (${category}) to you based on your expertise.`,
+            type: "allocation",
+            link: `/projects/${project.id}`,
+          });
+          allNotifications.push({
+            user_id: project.student_id,
+            title: "Supervisor Assigned",
+            message: `Your project "${project.title}" has been assigned to ${best.name}.`,
+            type: "project",
+            link: `/projects/${project.id}`,
+          });
+
+          allocated++;
         } catch (e) {
-          console.error("[bulk] error for project", p.id, e);
-          manual++;
+          console.error("[bulk] error for project", project.id, e);
+          skipped++;
         }
+      }
+
+      // Send all notifications in one batch
+      if (allNotifications.length > 0) {
+        await admin.from("notifications").insert(allNotifications);
       }
 
       return ok({
         allocated,
-        total: (pendingProjects ?? []).length,
-        manualReviewCount: manual,
+        total: pendingProjects.length,
+        skipped,
         message: allocated > 0
-          ? `Matched ${allocated} project(s) to supervisors.`
-          : "No pending projects could be matched.",
+          ? `Force-assigned ${allocated} project(s) to matching supervisors.`
+          : "No pending projects could be matched to available supervisors.",
       });
     }
 
