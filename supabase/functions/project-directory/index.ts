@@ -29,9 +29,9 @@ serve(async (req) => {
     });
 
     const token = authHeader.replace("Bearer ", "");
-    const { data, error: authError } = await authClient.auth.getClaims(token);
+    const { data: claimsData, error: authError } = await authClient.auth.getClaims(token);
 
-    if (authError || !data?.claims?.sub) {
+    if (authError || !claimsData?.claims?.sub) {
       return new Response(JSON.stringify({ error: "Not authenticated" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
