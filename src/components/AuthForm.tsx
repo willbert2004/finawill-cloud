@@ -104,8 +104,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
       if (activeTab === 'signin') {
         result = await signIn(email, password);
       } else {
-        const signUpType = userType === 'super_admin' ? 'admin' : userType;
-        result = await signUp(email, password, signUpType as 'student' | 'supervisor' | 'admin', { school, department });
+        result = await signUp(email, password, userType, { school, department });
       }
 
       if (result.error) {
