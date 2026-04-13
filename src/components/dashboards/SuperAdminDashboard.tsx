@@ -7,6 +7,7 @@ import {
   Crown, CheckCircle, Clock, Users, AlertTriangle,
   TrendingUp, Loader2, ShieldCheck, Settings, Database,
 } from "lucide-react";
+import { DuplicationThresholdConfig } from "@/components/DuplicationThresholdConfig";
 
 interface SuperAdminDashboardProps {
   user: any;
