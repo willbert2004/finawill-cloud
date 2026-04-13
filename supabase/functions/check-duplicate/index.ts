@@ -7,8 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const SIMILARITY_THRESHOLD = 35;
-
 interface Project {
   id: string;
   title: string;
@@ -24,6 +22,35 @@ interface ScoredProject {
   score: number;
 }
 
+interface ThresholdRange {
+  level: string;
+  min_score: number;
+  max_score: number;
+}
+
+async function loadThresholds(adminClient: any): Promise<{ high: ThresholdRange; possible: ThresholdRange; low: ThresholdRange }> {
+  const { data, error } = await adminClient
+    .from('duplication_thresholds')
+    .select('level, min_score, max_score');
+
+  const defaults = {
+    high: { level: 'high', min_score: 70, max_score: 100 },
+    possible: { level: 'possible', min_score: 35, max_score: 69 },
+    low: { level: 'low', min_score: 0, max_score: 34 },
+  };
+
+  if (error || !data || data.length === 0) return defaults;
+
+  const map: Record<string, ThresholdRange> = {};
+  for (const row of data) map[row.level] = row;
+
+  return {
+    high: map.high || defaults.high,
+    possible: map.possible || defaults.possible,
+    low: map.low || defaults.low,
+  };
+}
+
 async function computeSemanticSimilarity(
   newProject: { title: string; objectives: string; description: string },
   existingProjects: Project[],
@@ -37,7 +64,6 @@ async function computeSemanticSimilarity(
   for (let i = 0; i < existingProjects.length; i += batchSize) {
     const batch = existingProjects.slice(i, i + batchSize);
 
-    // Use sequential index numbers so we can reliably map results back
     const projectList = batch.map((p, idx) =>
       `Project ${idx + 1}:\nTitle: ${p.title}\nObjectives: ${p.objectives || 'N/A'}\nDescription: ${p.description}`
     ).join('\n\n');
@@ -124,7 +150,6 @@ Return similarity scores for each project using the project_number (1, 2, 3, etc
         const scoredIndices = new Set<number>();
 
         for (const item of parsed.scores) {
-          // Use project_number (1-based index) to map back to the batch
           const idx = (item.project_number || 0) - 1;
           if (idx >= 0 && idx < batch.length) {
             scoredIndices.add(idx);
@@ -135,7 +160,6 @@ Return similarity scores for each project using the project_number (1, 2, 3, etc
           }
         }
 
-        // Fallback for any projects the AI missed
         for (let j = 0; j < batch.length; j++) {
           if (!scoredIndices.has(j)) {
             allResults.push({ project: batch[j], score: fallbackSimilarity(newProject, batch[j]) });
@@ -166,6 +190,12 @@ function fallbackSimilarity(p1: { title: string; description: string }, p2: { ti
   const union = new Set([...words1, ...words2]);
   if (union.size === 0) return 0;
   return (intersection.size / union.size) * 100;
+}
+
+function classifyScore(score: number, thresholds: { high: ThresholdRange; possible: ThresholdRange; low: ThresholdRange }): string {
+  if (score >= thresholds.high.min_score && score <= thresholds.high.max_score) return 'high';
+  if (score >= thresholds.possible.min_score && score <= thresholds.possible.max_score) return 'possible';
+  return 'low';
 }
 
 serve(async (req) => {
@@ -216,6 +246,10 @@ serve(async (req) => {
       );
     }
 
+    // Load configurable thresholds from DB
+    const thresholds = await loadThresholds(adminClient);
+    const blockThreshold = thresholds.high.min_score; // Projects at or above this are blocked
+
     const { data: existingProjects, error: fetchError } = await adminClient
       .from('projects')
       .select('id, title, objectives, description, student_id, supervisor_id, year');
@@ -246,14 +280,17 @@ serve(async (req) => {
       });
     }
 
-    // Build results
+    // Build results using configurable thresholds
     let isDuplicate = false;
     let highestMatch: ScoredProject | null = null;
     const similarities: ScoredProject[] = [];
 
     for (const sp of scoredProjects) {
-      if (sp.score > SIMILARITY_THRESHOLD) {
+      const classification = classifyScore(sp.score, thresholds);
+      if (classification === 'high') {
         isDuplicate = true;
+        similarities.push(sp);
+      } else if (classification === 'possible') {
         similarities.push(sp);
       }
       if (!highestMatch || sp.score > highestMatch.score) {
@@ -263,22 +300,35 @@ serve(async (req) => {
 
     similarities.sort((a, b) => b.score - a.score);
 
+    const highestClassification = highestMatch ? classifyScore(highestMatch.score, thresholds) : 'low';
+
     const response = {
       isDuplicate,
       highestSimilarity: highestMatch ? highestMatch.score : 0,
-      similarProjects: similarities.slice(0, 5).map(s => ({
-        id: s.project.id,
-        title: s.project.title,
-        description: s.project.description,
-        objectives: s.project.objectives,
-        similarity: Math.round(s.score * 10) / 10,
-        student_name: profileMap[s.project.student_id] || 'Unknown',
-        supervisor_name: s.project.supervisor_id ? (profileMap[s.project.supervisor_id] || 'Not assigned') : 'Not assigned',
-        year: s.project.year || new Date(Date.now()).getFullYear(),
-      })),
+      thresholds: {
+        high: { min: thresholds.high.min_score, max: thresholds.high.max_score },
+        possible: { min: thresholds.possible.min_score, max: thresholds.possible.max_score },
+        low: { min: thresholds.low.min_score, max: thresholds.low.max_score },
+      },
+      similarProjects: similarities.slice(0, 5).map(s => {
+        const classification = classifyScore(s.score, thresholds);
+        return {
+          id: s.project.id,
+          title: s.project.title,
+          description: s.project.description,
+          objectives: s.project.objectives,
+          similarity: Math.round(s.score * 10) / 10,
+          classification,
+          student_name: profileMap[s.project.student_id] || 'Unknown',
+          supervisor_name: s.project.supervisor_id ? (profileMap[s.project.supervisor_id] || 'Not assigned') : 'Not assigned',
+          year: s.project.year || new Date(Date.now()).getFullYear(),
+        };
+      }),
       message: isDuplicate
-        ? `⚠️ Submission blocked: Found similar project(s) above ${SIMILARITY_THRESHOLD}% threshold (highest: ${Math.round(highestMatch!.score)}%).`
-        : `✅ No significant duplicates found (highest similarity: ${highestMatch ? Math.round(highestMatch.score) : 0}%). You may proceed.`,
+        ? `⚠️ Submission blocked: Found similar project(s) in the high-risk range (${thresholds.high.min_score}–${thresholds.high.max_score}%). Highest: ${Math.round(highestMatch!.score)}%.`
+        : highestClassification === 'possible'
+          ? `⚠️ Possible duplication detected (highest: ${Math.round(highestMatch!.score)}%), but within the allowed range. You may proceed with caution.`
+          : `✅ No significant duplicates found (highest similarity: ${highestMatch ? Math.round(highestMatch.score) : 0}%). You may proceed.`,
     };
 
     return new Response(
