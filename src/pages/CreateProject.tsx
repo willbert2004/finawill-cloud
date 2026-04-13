@@ -346,7 +346,7 @@ export default function CreateProject() {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    You must run this check before submitting. Projects with &gt;35% similarity to existing ones will be rejected.
+                    You must run this check before submitting. Projects above the configured high-risk threshold will be rejected.
                   </p>
 
                   {/* Duplicate Results */}
@@ -373,7 +373,7 @@ export default function CreateProject() {
                         <div key={sp.id} className="border rounded-lg p-3 space-y-2 bg-background">
                           <div className="flex justify-between items-start gap-2">
                             <h5 className="font-medium text-sm">{sp.title}</h5>
-                            <Badge variant={sp.similarity > 70 ? "destructive" : sp.similarity > 50 ? "outline" : "secondary"} className="text-[10px] shrink-0">
+                            <Badge variant={sp.similarity > (duplicateResult as any)?.thresholds?.high?.min || 70 ? "destructive" : sp.similarity >= (duplicateResult as any)?.thresholds?.possible?.min || 35 ? "outline" : "secondary"} className="text-[10px] shrink-0">
                               {Math.round(sp.similarity)}% match
                             </Badge>
                           </div>

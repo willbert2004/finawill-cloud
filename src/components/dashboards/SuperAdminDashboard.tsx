@@ -7,6 +7,7 @@ import {
   Crown, CheckCircle, Clock, Users, AlertTriangle,
   TrendingUp, Loader2, ShieldCheck, Settings, Database,
 } from "lucide-react";
+import { DuplicationThresholdConfig } from "@/components/DuplicationThresholdConfig";
 
 interface SuperAdminDashboardProps {
   user: any;
@@ -163,6 +164,9 @@ export function SuperAdminDashboard({ user, projectStats, recentProjects, groupC
           </CardContent>
         </Card>
       </div>
+
+      {/* Duplication Threshold Configuration - Super Admin Only */}
+      <DuplicationThresholdConfig />
     </div>
   );
 }
