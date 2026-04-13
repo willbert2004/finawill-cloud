@@ -164,6 +164,9 @@ export function SuperAdminDashboard({ user, projectStats, recentProjects, groupC
           </CardContent>
         </Card>
       </div>
+
+      {/* Duplication Threshold Configuration - Super Admin Only */}
+      <DuplicationThresholdConfig />
     </div>
   );
 }
