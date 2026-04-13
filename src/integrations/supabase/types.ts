@@ -109,6 +109,33 @@ export type Database = {
           },
         ]
       }
+      duplication_thresholds: {
+        Row: {
+          created_at: string
+          id: string
+          level: string
+          max_score: number
+          min_score: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level: string
+          max_score: number
+          min_score: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string
+          max_score?: number
+          min_score?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       group_allocations: {
         Row: {
           created_at: string
