@@ -38,10 +38,12 @@ type Thresholds = { high: ThresholdRange; possible: ThresholdRange; low: Thresho
 
 const WEIGHTS = { title: 0.40, objectives: 0.30, description: 0.30 } as const;
 
-// Pre-filter: only send projects above this TF-IDF score to the LLM
-const LLM_PREFILTER_THRESHOLD = 20;
-// Max projects to send to LLM for semantic verification
-const MAX_LLM_CANDIDATES = 8;
+// Phase 1 TF-IDF: lower threshold to catch more candidates
+const TFIDF_PREFILTER_THRESHOLD = 8;
+// Max candidates from TF-IDF to consider
+const MAX_TFIDF_CANDIDATES = 20;
+// Max projects to send to LLM for final semantic scoring
+const MAX_LLM_CANDIDATES = 12;
 
 // ── Stop words ─────────────────────────────────────────────────────────────────
 
@@ -68,7 +70,6 @@ function tokenize(text: string): string[] {
     .filter(w => w.length > 2 && !STOP_WORDS.has(w));
 }
 
-/** Generate bigrams from tokens for better phrase-level matching */
 function bigrams(tokens: string[]): string[] {
   const bi: string[] = [];
   for (let i = 0; i < tokens.length - 1; i++) {
@@ -77,7 +78,6 @@ function bigrams(tokens: string[]): string[] {
   return bi;
 }
 
-/** Tokenize with both unigrams and bigrams */
 function tokenizeWithBigrams(text: string): string[] {
   const unigrams = tokenize(text);
   return [...unigrams, ...bigrams(unigrams)];
@@ -90,7 +90,6 @@ type TermVector = Map<string, number>;
 function buildTF(tokens: string[]): TermVector {
   const tf: TermVector = new Map();
   for (const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
-  // Normalize by doc length
   const len = tokens.length || 1;
   for (const [k, v] of tf) tf.set(k, v / len);
   return tf;
@@ -105,7 +104,7 @@ function buildIDF(documents: string[][]): Map<string, number> {
   }
   const idf = new Map<string, number>();
   for (const [term, count] of df) {
-    idf.set(term, Math.log((N + 1) / (count + 1)) + 1); // smoothed IDF
+    idf.set(term, Math.log((N + 1) / (count + 1)) + 1);
   }
   return idf;
 }
@@ -113,7 +112,7 @@ function buildIDF(documents: string[][]): Map<string, number> {
 function tfidfVector(tf: TermVector, idf: Map<string, number>): TermVector {
   const vec: TermVector = new Map();
   for (const [term, tfVal] of tf) {
-    const idfVal = idf.get(term) || Math.log(idf.size + 1); // unseen term gets high IDF
+    const idfVal = idf.get(term) || Math.log(idf.size + 1);
     vec.set(term, tfVal * idfVal);
   }
   return vec;
@@ -131,7 +130,7 @@ function cosineSimilarity(a: TermVector, b: TermVector): number {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
 
-// ── Weighted field-level similarity ────────────────────────────────────────────
+// ── Weighted field-level TF-IDF similarity ─────────────────────────────────────
 
 function computeFieldSimilarity(
   newDoc: { title: string; objectives: string; description: string },
@@ -139,7 +138,6 @@ function computeFieldSimilarity(
 ): ScoredProject[] {
   if (existing.length === 0) return [];
 
-  // Build corpus for each field separately (better IDF per field)
   const allTitles = existing.map(p => tokenizeWithBigrams(p.title || ''));
   const allObjectives = existing.map(p => tokenizeWithBigrams(p.objectives || ''));
   const allDescriptions = existing.map(p => tokenizeWithBigrams(p.description || ''));
@@ -148,7 +146,6 @@ function computeFieldSimilarity(
   const newObjTokens = tokenizeWithBigrams(newDoc.objectives);
   const newDescTokens = tokenizeWithBigrams(newDoc.description);
 
-  // Include new doc in IDF computation
   const titleIDF = buildIDF([newTitleTokens, ...allTitles]);
   const objIDF = buildIDF([newObjTokens, ...allObjectives]);
   const descIDF = buildIDF([newDescTokens, ...allDescriptions]);
@@ -171,11 +168,108 @@ function computeFieldSimilarity(
   });
 }
 
-// ── LLM Semantic Verification (only for top candidates) ────────────────────────
+// ── Phase 1b: LLM Concept Extraction ──────────────────────────────────────────
+// Ask the LLM to extract core concepts/themes from the new project.
+// Then do a simple text search across all existing projects to find
+// semantically related ones that TF-IDF missed (different wording, same meaning).
 
-async function semanticVerify(
+async function extractConcepts(
   newProject: { title: string; objectives: string; description: string },
-  candidates: ScoredProject[],
+  apiKey: string
+): Promise<string[]> {
+  try {
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash-lite',
+        messages: [
+          {
+            role: 'system',
+            content: 'You extract core research concepts from academic project proposals. Return synonyms, related terms, and domain-specific vocabulary that describe the same research area. Be thorough — include alternate phrasings someone might use for the same idea.'
+          },
+          {
+            role: 'user',
+            content: `Extract the core research concepts, themes, synonyms, and related technical terms from this project. Include alternate phrasings and domain vocabulary.\n\nTitle: ${newProject.title}\nObjectives: ${newProject.objectives}\nDescription: ${newProject.description}`
+          }
+        ],
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'report_concepts',
+            description: 'Report extracted concepts and synonyms',
+            parameters: {
+              type: 'object',
+              properties: {
+                concepts: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'List of 10-25 key concepts, synonyms, and related terms (single words or short phrases)'
+                }
+              },
+              required: ['concepts'],
+              additionalProperties: false
+            }
+          }
+        }],
+        tool_choice: { type: 'function', function: { name: 'report_concepts' } }
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`Concept extraction failed [${response.status}]`);
+      return [];
+    }
+
+    const data = await response.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall?.function?.arguments) return [];
+
+    const parsed = JSON.parse(toolCall.function.arguments);
+    return (parsed.concepts || []).map((c: string) => c.toLowerCase().trim()).filter(Boolean);
+  } catch (error) {
+    console.error('Concept extraction error:', error);
+    return [];
+  }
+}
+
+/** Find projects that contain any of the extracted concepts in their text */
+function findConceptMatches(
+  concepts: string[],
+  projects: Project[],
+  excludeIds: Set<string>
+): Project[] {
+  if (concepts.length === 0) return [];
+
+  const matches: { project: Project; hits: number }[] = [];
+
+  for (const project of projects) {
+    if (excludeIds.has(project.id)) continue;
+
+    const fullText = `${project.title} ${project.objectives || ''} ${project.description}`.toLowerCase();
+    let hits = 0;
+    for (const concept of concepts) {
+      if (fullText.includes(concept)) hits++;
+    }
+    // Require at least 2 concept hits to be considered a candidate
+    if (hits >= 2) {
+      matches.push({ project, hits });
+    }
+  }
+
+  // Sort by number of hits descending and take top candidates
+  matches.sort((a, b) => b.hits - a.hits);
+  return matches.slice(0, 10).map(m => m.project);
+}
+
+// ── Phase 2: LLM Semantic Scoring ──────────────────────────────────────────────
+
+async function semanticScore(
+  newProject: { title: string; objectives: string; description: string },
+  candidates: { project: Project; tfidfScore: number }[],
   apiKey: string
 ): Promise<ScoredProject[]> {
   if (candidates.length === 0) return [];
@@ -184,16 +278,21 @@ async function semanticVerify(
     `Project ${idx + 1}:\nTitle: ${c.project.title}\nObjectives: ${c.project.objectives || 'N/A'}\nDescription: ${c.project.description}`
   ).join('\n\n');
 
-  const prompt = `You are a semantic textual similarity engine for academic project proposals.
+  const prompt = `You are a semantic similarity engine for academic project proposals. Your job is to deeply understand the MEANING and INTENT of each project, not just surface keywords.
 
 Compare the NEW project against each EXISTING project below. For each, provide a similarity score 0-100 based on:
-- Whether they address the SAME research problem or topic (most important)
-- Methodological overlap
-- Domain and objective alignment
-- Conceptual similarity beyond surface keywords
+1. Whether they address the SAME core problem or research question (50% weight)
+2. Methodological and technical overlap (20% weight)
+3. Domain and application area alignment (20% weight)
+4. Expected outcomes and deliverables similarity (10% weight)
 
-Be strict: projects that share keywords but solve different problems should score LOW (<30).
-Only genuinely similar research should score HIGH (>60).
+IMPORTANT scoring guidelines:
+- Projects using DIFFERENT words but solving the SAME problem = HIGH score (70+)
+  e.g. "crop disease detection" and "plant pathology identification" are the same thing
+- Projects in the SAME domain but solving DIFFERENT problems = LOW score (<30)
+  e.g. "crop disease detection" and "soil moisture monitoring" share agriculture but differ
+- Near-identical projects with minor variations = VERY HIGH (85+)
+- Completely unrelated projects = VERY LOW (<10)
 
 NEW PROJECT:
 Title: ${newProject.title}
@@ -213,7 +312,7 @@ ${projectList}`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
         messages: [
-          { role: 'system', content: 'You are a strict academic similarity scorer. Score only on genuine research overlap.' },
+          { role: 'system', content: 'You are a strict academic project similarity scorer. Focus on genuine research overlap in meaning, not just keywords.' },
           { role: 'user', content: prompt }
         ],
         tools: [{
@@ -248,14 +347,29 @@ ${projectList}`;
     });
 
     if (!response.ok) {
-      console.error(`LLM verification failed [${response.status}]`);
-      return candidates; // Fall back to TF-IDF scores
+      console.error(`LLM scoring failed [${response.status}]`);
+      // Fall back to TF-IDF scores
+      return candidates.map(c => ({
+        project: c.project,
+        score: c.tfidfScore,
+        titleScore: 0,
+        objectivesScore: 0,
+        descriptionScore: 0,
+      }));
     }
 
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
 
-    if (!toolCall?.function?.arguments) return candidates;
+    if (!toolCall?.function?.arguments) {
+      return candidates.map(c => ({
+        project: c.project,
+        score: c.tfidfScore,
+        titleScore: 0,
+        objectivesScore: 0,
+        descriptionScore: 0,
+      }));
+    }
 
     const parsed = JSON.parse(toolCall.function.arguments);
     const llmScores = new Map<number, number>();
@@ -266,17 +380,30 @@ ${projectList}`;
       }
     }
 
-    // Blend: 40% TF-IDF + 60% LLM for verified candidates
+    // Final score: 30% TF-IDF + 70% LLM (LLM is the primary judge)
     return candidates.map((c, i) => {
       const llmScore = llmScores.get(i);
-      if (llmScore !== undefined) {
-        return { ...c, score: c.score * 0.4 + llmScore * 0.6 };
-      }
-      return c;
+      const finalScore = llmScore !== undefined
+        ? c.tfidfScore * 0.3 + llmScore * 0.7
+        : c.tfidfScore;
+
+      return {
+        project: c.project,
+        score: finalScore,
+        titleScore: 0,
+        objectivesScore: 0,
+        descriptionScore: 0,
+      };
     });
   } catch (error) {
-    console.error('LLM semantic verification error:', error);
-    return candidates; // Fall back to TF-IDF scores
+    console.error('LLM semantic scoring error:', error);
+    return candidates.map(c => ({
+      project: c.project,
+      score: c.tfidfScore,
+      titleScore: 0,
+      objectivesScore: 0,
+      descriptionScore: 0,
+    }));
   }
 }
 
@@ -361,50 +488,76 @@ serve(async (req) => {
       );
     }
 
-    // Load thresholds & existing projects in parallel
-    const [thresholds, { data: existingProjects, error: fetchError }] = await Promise.all([
+    // Load thresholds & existing projects & extract concepts — all in parallel
+    const [thresholds, { data: existingProjects, error: fetchError }, concepts] = await Promise.all([
       loadThresholds(adminClient),
       adminClient
         .from('projects')
         .select('id, title, objectives, description, student_id, supervisor_id, year'),
+      extractConcepts({ title, objectives, description }, lovableApiKey),
     ]);
 
     if (fetchError) throw fetchError;
+    const allProjects: Project[] = existingProjects || [];
 
-    // ── Phase 1: TF-IDF cosine similarity with weighted fields ──
-    const tfidfResults = computeFieldSimilarity(
-      { title, objectives, description },
-      existingProjects || []
-    );
+    console.log(`[check-duplicate] ${allProjects.length} existing projects, ${concepts.length} concepts extracted`);
 
-    // Sort by score descending
+    // ── Phase 1a: TF-IDF cosine similarity ──
+    const tfidfResults = computeFieldSimilarity({ title, objectives, description }, allProjects);
     tfidfResults.sort((a, b) => b.score - a.score);
 
-    // ── Phase 2: LLM semantic verification on top candidates only ──
-    const llmCandidates = tfidfResults
-      .filter(r => r.score >= LLM_PREFILTER_THRESHOLD)
-      .slice(0, MAX_LLM_CANDIDATES);
+    // Get TF-IDF candidates above threshold
+    const tfidfCandidateIds = new Set<string>();
+    const tfidfCandidates = tfidfResults
+      .filter(r => r.score >= TFIDF_PREFILTER_THRESHOLD)
+      .slice(0, MAX_TFIDF_CANDIDATES);
+    tfidfCandidates.forEach(c => tfidfCandidateIds.add(c.project.id));
 
-    let verifiedResults: ScoredProject[];
+    // ── Phase 1b: Concept-based candidates (catches what TF-IDF missed) ──
+    const conceptMatches = findConceptMatches(concepts, allProjects, tfidfCandidateIds);
+    console.log(`[check-duplicate] TF-IDF candidates: ${tfidfCandidates.length}, Concept candidates: ${conceptMatches.length}`);
+
+    // ── Merge candidates for LLM scoring ──
+    const mergedCandidates: { project: Project; tfidfScore: number }[] = [];
+
+    // Add TF-IDF candidates with their scores
+    for (const c of tfidfCandidates) {
+      mergedCandidates.push({ project: c.project, tfidfScore: c.score });
+    }
+
+    // Add concept-matched candidates (with tfidfScore = 0 since TF-IDF missed them)
+    for (const p of conceptMatches) {
+      mergedCandidates.push({ project: p, tfidfScore: 0 });
+    }
+
+    // Limit total candidates sent to LLM
+    const llmCandidates = mergedCandidates.slice(0, MAX_LLM_CANDIDATES);
+
+    // ── Phase 2: LLM Semantic Scoring ──
+    let scoredResults: ScoredProject[];
     if (llmCandidates.length > 0) {
-      verifiedResults = await semanticVerify(
+      scoredResults = await semanticScore(
         { title, objectives, description },
         llmCandidates,
         lovableApiKey
       );
-      // Merge back: replace LLM-verified scores, keep TF-IDF for the rest
-      const verifiedIds = new Set(verifiedResults.map(r => r.project.id));
-      const unverified = tfidfResults.filter(r => !verifiedIds.has(r.project.id));
-      verifiedResults = [...verifiedResults, ...unverified];
+
+      // Add remaining projects that weren't sent to LLM (with TF-IDF scores only)
+      const scoredIds = new Set(scoredResults.map(r => r.project.id));
+      for (const r of tfidfResults) {
+        if (!scoredIds.has(r.project.id)) {
+          scoredResults.push(r);
+        }
+      }
     } else {
-      verifiedResults = tfidfResults;
+      scoredResults = tfidfResults;
     }
 
-    verifiedResults.sort((a, b) => b.score - a.score);
+    scoredResults.sort((a, b) => b.score - a.score);
 
     // ── Gather profile info ──
     const allUserIds = new Set<string>();
-    existingProjects?.forEach(p => {
+    allProjects.forEach(p => {
       if (p.student_id) allUserIds.add(p.student_id);
       if (p.supervisor_id) allUserIds.add(p.supervisor_id);
     });
@@ -425,7 +578,7 @@ serve(async (req) => {
     let highestMatch: ScoredProject | null = null;
     const similarities: ScoredProject[] = [];
 
-    for (const sp of verifiedResults) {
+    for (const sp of scoredResults) {
       const classification = classifyScore(sp.score, thresholds);
       if (classification === 'high') {
         isDuplicate = true;
@@ -450,8 +603,9 @@ serve(async (req) => {
         possible: { min: thresholds.possible.min_score, max: thresholds.possible.max_score },
         low: { min: thresholds.low.min_score, max: thresholds.low.max_score },
       },
-      algorithm: 'tfidf-cosine-llm-hybrid',
+      algorithm: 'tfidf-concept-extraction-llm-semantic',
       weights: WEIGHTS,
+      conceptsExtracted: concepts.length,
       similarProjects: similarities.slice(0, 5).map(s => {
         const classification = classifyScore(s.score, thresholds);
         return {
@@ -470,7 +624,7 @@ serve(async (req) => {
         };
       }),
       message: isDuplicate
-        ? `⚠️ Submission blocked: Found similar project(s) in the high-risk range (${thresholds.high.min_score}–${thresholds.high.max_score}%). Highest: ${Math.round(highestMatch!.score)}%.`
+        ? `⚠️ Submission blocked: Found semantically similar project(s) in the high-risk range (${thresholds.high.min_score}–${thresholds.high.max_score}%). Highest: ${Math.round(highestMatch!.score)}%.`
         : highestClassification === 'possible'
           ? `⚠️ Possible duplication detected (highest: ${Math.round(highestMatch!.score)}%), but within the allowed range. You may proceed with caution.`
           : `✅ No significant duplicates found (highest similarity: ${highestMatch ? Math.round(highestMatch.score) : 0}%). You may proceed.`,
