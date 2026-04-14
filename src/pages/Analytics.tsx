@@ -127,11 +127,17 @@ export default function Analytics() {
       }));
 
       // Supervisor workload
-      const supervisorWorkload = (supervisors || []).slice(0, 10).map(s => ({
-        name: s.full_name?.split(' ')[0] || s.email.split('@')[0],
-        current: s.current_projects || 0,
-        max: s.max_projects || 5
-      }));
+      const supervisorWorkload = (supervisors || []).slice(0, 10).map(s => {
+        const fullName = s.full_name || s.email.split('@')[0];
+        // Remove title prefixes like "Mr.", "Mrs.", "Dr." and show meaningful name
+        const cleanName = fullName.replace(/^(Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Prof\.?)\s*/i, '').trim();
+        const displayName = cleanName || fullName;
+        return {
+          name: displayName.length > 20 ? displayName.slice(0, 18) + '…' : displayName,
+          current: s.current_projects || 0,
+          max: s.max_projects || 5
+        };
+      });
 
       // Projects by department
       const deptCounts: Record<string, number> = {};
@@ -372,7 +378,7 @@ export default function Analytics() {
                     <BarChart data={data?.supervisorWorkload} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis type="number" />
-                      <YAxis dataKey="name" type="category" width={60} className="text-xs" />
+                      <YAxis dataKey="name" type="category" width={120} className="text-xs" />
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="current" fill="hsl(var(--primary))" name="Current" radius={[0, 4, 4, 0]} />
