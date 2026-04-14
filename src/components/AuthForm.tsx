@@ -352,9 +352,9 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
               <div className="space-y-1">
                 <Label className="text-xs font-semibold text-foreground text-center block">Account Type</Label>
                 <div className="flex justify-center">
-                  <div className="flex items-center gap-2 rounded-lg border-2 border-primary bg-primary/5 p-2">
-                    <GraduationCap className="h-4 w-4 text-primary" />
-                    <span className="text-xs font-medium text-primary">Student</span>
+                  <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-muted p-2">
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-medium text-muted-foreground">Student</span>
                   </div>
                 </div>
               </div>
