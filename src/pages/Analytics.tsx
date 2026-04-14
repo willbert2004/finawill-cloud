@@ -17,7 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { 
   Download, FileText, Table as TableIcon, TrendingUp, Users, FolderKanban, 
-  GitBranch, Loader2, ArrowLeft, AlertTriangle, Copy
+  GitBranch, Loader2, ArrowLeft, AlertTriangle, Copy, XCircle, Clock
 } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
