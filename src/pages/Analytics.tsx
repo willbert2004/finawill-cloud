@@ -831,6 +831,7 @@ export default function Analytics() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
 
           {isSuperAdmin && (
           <TabsContent value="export" className="space-y-6">
