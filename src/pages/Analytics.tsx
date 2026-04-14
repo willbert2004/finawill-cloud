@@ -356,11 +356,11 @@ export default function Analytics() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           {[
             { label: 'Projects', value: data?.totals.totalProjects, icon: FolderKanban, gradient: 'from-primary to-primary-light' },
+            { label: 'Duplicates', value: data?.totals.totalDuplicates, icon: Copy, gradient: 'from-[hsl(0,84%,60%)] to-[hsl(38,92%,50%)]' },
             { label: 'Allocations', value: data?.totals.totalAllocations, icon: GitBranch, gradient: 'from-secondary to-secondary-light' },
             { label: 'Pending', value: data?.totals.pendingAllocations, icon: TrendingUp, gradient: 'from-[hsl(var(--accent-gold))] to-[hsl(40,90%,65%)]' },
             { label: 'Supervisors', value: data?.totals.totalSupervisors, icon: Users, gradient: 'from-success to-[hsl(160,80%,45%)]' },
             { label: 'Students', value: data?.totals.totalStudents, icon: Users, gradient: 'from-primary-dark to-primary' },
-            { label: 'Groups', value: data?.totals.totalGroups, icon: Users, gradient: 'from-destructive to-[hsl(0,80%,65%)]' },
           ].map((item, i) => (
             <Card key={i} className="group hover-lift cursor-default overflow-hidden border-transparent shadow-card hover:shadow-hover transition-all duration-300">
               <CardContent className="p-4 flex items-center gap-3">
