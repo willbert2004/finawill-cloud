@@ -253,6 +253,57 @@ export default function Analytics() {
         }).length
       }));
 
+      // === Failure Patterns ===
+      const now = new Date();
+      const rejectedProjects = (projects || []).filter(p => p.status === 'rejected');
+      const needsRevisionProjects = (projects || []).filter(p => p.status === 'needs_revision');
+      const staleStatuses = ['pending', 'needs_revision'];
+      const staleDays = 14;
+      const atRiskProjects: FailureProject[] = (projects || [])
+        .filter(p => staleStatuses.includes(p.status))
+        .map(p => {
+          const updated = new Date(p.updated_at);
+          const days = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            id: p.id,
+            title: p.title,
+            department: p.department,
+            status: p.status,
+            rejection_reason: p.rejection_reason,
+            student_name: profileMap.get(p.student_id) || 'Unknown',
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            days_stuck: days,
+          };
+        })
+        .filter(p => p.days_stuck >= staleDays)
+        .sort((a, b) => b.days_stuck - a.days_stuck);
+
+      // Rejection reasons breakdown
+      const reasonCounts: Record<string, number> = {};
+      rejectedProjects.forEach(p => {
+        const reason = p.rejection_reason?.trim() || 'No reason given';
+        const short = reason.length > 40 ? reason.slice(0, 38) + '…' : reason;
+        reasonCounts[short] = (reasonCounts[short] || 0) + 1;
+      });
+      const rejectionReasons = Object.entries(reasonCounts)
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10);
+
+      // Failure by department
+      const failDeptMap: Record<string, { rejected: number; needs_revision: number }> = {};
+      [...rejectedProjects, ...needsRevisionProjects].forEach(p => {
+        const dept = p.department || 'Unassigned';
+        if (!failDeptMap[dept]) failDeptMap[dept] = { rejected: 0, needs_revision: 0 };
+        if (p.status === 'rejected') failDeptMap[dept].rejected++;
+        else failDeptMap[dept].needs_revision++;
+      });
+      const failureByDept = Object.entries(failDeptMap).map(([department, vals]) => ({
+        department: department.length > 20 ? department.slice(0, 18) + '…' : department,
+        ...vals
+      }));
+
       setData({
         projectsByStatus,
         allocationsByStatus,
@@ -262,6 +313,14 @@ export default function Analytics() {
         duplicates,
         duplicatesByDept,
         similarityDistribution,
+        rejectionReasons,
+        failureByDept,
+        atRiskProjects,
+        failureTotals: {
+          rejected: rejectedProjects.length,
+          needsRevision: needsRevisionProjects.length,
+          atRisk: atRiskProjects.length,
+        },
         totals: {
           totalProjects: projects?.length || 0,
           totalAllocations: allAllocations.length,
