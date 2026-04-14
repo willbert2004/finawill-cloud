@@ -502,7 +502,120 @@ export default function Analytics() {
             </Card>
           </TabsContent>
 
-          {isSuperAdmin && (
+          <TabsContent value="duplicates" className="space-y-6">
+            {/* Duplicate Insights Charts */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    Similarity Score Distribution
+                  </CardTitle>
+                  <CardDescription>How similar are the flagged duplicate projects</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={data?.similarityDistribution}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="range" className="text-xs" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="count" name="Projects" radius={[4, 4, 0, 0]}>
+                        {data?.similarityDistribution.map((_, index) => (
+                          <Cell key={index} fill={['hsl(142, 76%, 36%)', 'hsl(142, 60%, 50%)', 'hsl(38, 92%, 50%)', 'hsl(0, 60%, 55%)', 'hsl(0, 84%, 50%)'][index]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Duplicates by Department</CardTitle>
+                  <CardDescription>Which departments have the most flagged duplicates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.duplicatesByDept?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={data?.duplicatesByDept} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis type="number" allowDecimals={false} />
+                        <YAxis dataKey="department" type="category" width={120} className="text-xs" />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Duplicates" fill="hsl(0, 84%, 60%)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                      No duplicates found — great!
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Duplicates Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Copy className="h-5 w-5" />
+                  All Flagged Duplicate Projects ({data?.duplicates?.length || 0})
+                </CardTitle>
+                <CardDescription>
+                  Projects automatically flagged by the duplicate detection system based on title and description similarity
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(data?.duplicates?.length || 0) > 0 ? (
+                  <div className="rounded-md border overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Similarity</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data?.duplicates.map((dup) => (
+                          <TableRow key={dup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/projects/${dup.id}`)}>
+                            <TableCell className="font-medium max-w-[200px] truncate">{dup.title}</TableCell>
+                            <TableCell>{dup.student_name}</TableCell>
+                            <TableCell className="max-w-[120px] truncate">{dup.department || '—'}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                (dup.similarity_score || 0) >= 80 ? 'destructive' :
+                                (dup.similarity_score || 0) >= 50 ? 'secondary' : 'outline'
+                              }>
+                                {dup.similarity_score != null ? `${dup.similarity_score}%` : 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">{dup.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {new Date(dup.created_at).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <AlertTriangle className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-lg font-medium">No duplicate projects detected</p>
+                    <p className="text-sm">The system hasn't flagged any projects as duplicates yet.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="export" className="space-y-6">
             <Card>
               <CardHeader>
