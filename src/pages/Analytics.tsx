@@ -33,6 +33,18 @@ interface DuplicateProject {
   created_at: string;
 }
 
+interface FailureProject {
+  id: string;
+  title: string;
+  department: string | null;
+  status: string;
+  rejection_reason: string | null;
+  student_name: string;
+  created_at: string;
+  updated_at: string;
+  days_stuck: number;
+}
+
 interface AnalyticsData {
   projectsByStatus: { name: string; value: number; color: string }[];
   allocationsByStatus: { name: string; value: number }[];
@@ -42,6 +54,11 @@ interface AnalyticsData {
   duplicates: DuplicateProject[];
   duplicatesByDept: { department: string; count: number }[];
   similarityDistribution: { range: string; count: number }[];
+  // Failure patterns
+  rejectionReasons: { reason: string; count: number }[];
+  failureByDept: { department: string; rejected: number; needs_revision: number }[];
+  atRiskProjects: FailureProject[];
+  failureTotals: { rejected: number; needsRevision: number; atRisk: number };
   totals: {
     totalProjects: number;
     totalAllocations: number;
