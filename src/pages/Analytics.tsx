@@ -14,10 +14,24 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
+import { Badge } from '@/components/ui/badge';
 import { 
-  Download, FileText, Table, TrendingUp, Users, FolderKanban, 
-  GitBranch, Loader2, ArrowLeft 
+  Download, FileText, Table as TableIcon, TrendingUp, Users, FolderKanban, 
+  GitBranch, Loader2, ArrowLeft, AlertTriangle, Copy
 } from 'lucide-react';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+} from '@/components/ui/table';
+
+interface DuplicateProject {
+  id: string;
+  title: string;
+  department: string | null;
+  status: string;
+  similarity_score: number | null;
+  student_name: string;
+  created_at: string;
+}
 
 interface AnalyticsData {
   projectsByStatus: { name: string; value: number; color: string }[];
@@ -25,6 +39,9 @@ interface AnalyticsData {
   supervisorWorkload: { name: string; current: number; max: number }[];
   projectsByDepartment: { department: string; count: number }[];
   monthlyProjects: { month: string; projects: number; allocations: number }[];
+  duplicates: DuplicateProject[];
+  duplicatesByDept: { department: string; count: number }[];
+  similarityDistribution: { range: string; count: number }[];
   totals: {
     totalProjects: number;
     totalAllocations: number;
@@ -32,6 +49,7 @@ interface AnalyticsData {
     totalSupervisors: number;
     totalStudents: number;
     totalGroups: number;
+    totalDuplicates: number;
   };
 }
 
@@ -84,15 +102,20 @@ export default function Analytics() {
         { data: groupAllocations },
         { data: supervisors },
         { data: students },
-        { data: groups }
+        { data: groups },
+        { data: allProfiles }
       ] = await Promise.all([
         supabase.from('projects').select('*'),
         supabase.from('pending_allocations').select('*'),
         supabase.from('group_allocations').select('*'),
         supabase.from('profiles').select('*').eq('user_type', 'supervisor'),
         supabase.from('profiles').select('*').eq('user_type', 'student'),
-        supabase.from('student_groups').select('*')
+        supabase.from('student_groups').select('*'),
+        supabase.from('profiles').select('user_id, full_name, email')
       ]);
+
+      const profileMap = new Map<string, string>();
+      allProfiles?.forEach(p => profileMap.set(p.user_id, p.full_name || p.email));
 
       // Project status distribution
       const statusCounts: Record<string, number> = {};
@@ -129,7 +152,6 @@ export default function Analytics() {
       // Supervisor workload
       const supervisorWorkload = (supervisors || []).slice(0, 10).map(s => {
         const fullName = s.full_name || s.email.split('@')[0];
-        // Remove title prefixes like "Mr.", "Mrs.", "Dr." and show meaningful name
         const cleanName = fullName.replace(/^(Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Prof\.?)\s*/i, '').trim();
         const displayName = cleanName || fullName;
         return {
@@ -151,7 +173,7 @@ export default function Analytics() {
         count
       }));
 
-      // Monthly trends (simulated from created_at)
+      // Monthly trends
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthlyData: Record<string, { projects: number; allocations: number }> = {};
       
@@ -175,19 +197,62 @@ export default function Analytics() {
         allocations: monthlyData[month]?.allocations || 0
       }));
 
+      // Duplicates data
+      const duplicateProjects = (projects || []).filter(p => p.is_duplicate === true);
+      const duplicates: DuplicateProject[] = duplicateProjects.map(p => ({
+        id: p.id,
+        title: p.title,
+        department: p.department,
+        status: p.status,
+        similarity_score: p.similarity_score ? Number(p.similarity_score) : null,
+        student_name: profileMap.get(p.student_id) || 'Unknown',
+        created_at: p.created_at,
+      }));
+
+      // Duplicates by department
+      const dupDeptCounts: Record<string, number> = {};
+      duplicateProjects.forEach(p => {
+        const dept = p.department || 'Unassigned';
+        dupDeptCounts[dept] = (dupDeptCounts[dept] || 0) + 1;
+      });
+      const duplicatesByDept = Object.entries(dupDeptCounts).map(([department, count]) => ({
+        department: department.length > 20 ? department.slice(0, 18) + '...' : department,
+        count
+      }));
+
+      // Similarity score distribution
+      const ranges = [
+        { range: '0-20%', min: 0, max: 20 },
+        { range: '21-40%', min: 21, max: 40 },
+        { range: '41-60%', min: 41, max: 60 },
+        { range: '61-80%', min: 61, max: 80 },
+        { range: '81-100%', min: 81, max: 100 },
+      ];
+      const similarityDistribution = ranges.map(r => ({
+        range: r.range,
+        count: duplicateProjects.filter(p => {
+          const score = p.similarity_score ? Number(p.similarity_score) : 0;
+          return score >= r.min && score <= r.max;
+        }).length
+      }));
+
       setData({
         projectsByStatus,
         allocationsByStatus,
         supervisorWorkload,
         projectsByDepartment,
         monthlyProjects,
+        duplicates,
+        duplicatesByDept,
+        similarityDistribution,
         totals: {
           totalProjects: projects?.length || 0,
           totalAllocations: allAllocations.length,
           pendingAllocations: allAllocations.filter(a => a.status === 'pending').length,
           totalSupervisors: supervisors?.length || 0,
           totalStudents: students?.length || 0,
-          totalGroups: groups?.length || 0
+          totalGroups: groups?.length || 0,
+          totalDuplicates: duplicateProjects.length
         }
       });
     } catch (error) {
@@ -291,11 +356,11 @@ export default function Analytics() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           {[
             { label: 'Projects', value: data?.totals.totalProjects, icon: FolderKanban, gradient: 'from-primary to-primary-light' },
+            { label: 'Duplicates', value: data?.totals.totalDuplicates, icon: Copy, gradient: 'from-[hsl(0,84%,60%)] to-[hsl(38,92%,50%)]' },
             { label: 'Allocations', value: data?.totals.totalAllocations, icon: GitBranch, gradient: 'from-secondary to-secondary-light' },
             { label: 'Pending', value: data?.totals.pendingAllocations, icon: TrendingUp, gradient: 'from-[hsl(var(--accent-gold))] to-[hsl(40,90%,65%)]' },
             { label: 'Supervisors', value: data?.totals.totalSupervisors, icon: Users, gradient: 'from-success to-[hsl(160,80%,45%)]' },
             { label: 'Students', value: data?.totals.totalStudents, icon: Users, gradient: 'from-primary-dark to-primary' },
-            { label: 'Groups', value: data?.totals.totalGroups, icon: Users, gradient: 'from-destructive to-[hsl(0,80%,65%)]' },
           ].map((item, i) => (
             <Card key={i} className="group hover-lift cursor-default overflow-hidden border-transparent shadow-card hover:shadow-hover transition-all duration-300">
               <CardContent className="p-4 flex items-center gap-3">
@@ -312,8 +377,15 @@ export default function Analytics() {
         </div>
 
         <Tabs defaultValue="charts" className="space-y-6">
-          <TabsList className={`grid w-full max-w-md ${isSuperAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <TabsList className={`grid w-full max-w-lg ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="charts">Charts & Insights</TabsTrigger>
+            <TabsTrigger value="duplicates" className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Duplicates
+              {(data?.totals.totalDuplicates || 0) > 0 && (
+                <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0">{data?.totals.totalDuplicates}</Badge>
+              )}
+            </TabsTrigger>
             {isSuperAdmin && <TabsTrigger value="export">Export Reports</TabsTrigger>}
           </TabsList>
 
@@ -426,6 +498,120 @@ export default function Analytics() {
                     <Area type="monotone" dataKey="allocations" stackId="2" stroke="hsl(var(--secondary))" fill="hsl(var(--secondary))" fillOpacity={0.6} name="Allocations" />
                   </AreaChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="duplicates" className="space-y-6">
+            {/* Duplicate Insights Charts */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                    Similarity Score Distribution
+                  </CardTitle>
+                  <CardDescription>How similar are the flagged duplicate projects</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={data?.similarityDistribution}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="range" className="text-xs" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="count" name="Projects" radius={[4, 4, 0, 0]}>
+                        {data?.similarityDistribution.map((_, index) => (
+                          <Cell key={index} fill={['hsl(142, 76%, 36%)', 'hsl(142, 60%, 50%)', 'hsl(38, 92%, 50%)', 'hsl(0, 60%, 55%)', 'hsl(0, 84%, 50%)'][index]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Duplicates by Department</CardTitle>
+                  <CardDescription>Which departments have the most flagged duplicates</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.duplicatesByDept?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={data?.duplicatesByDept} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis type="number" allowDecimals={false} />
+                        <YAxis dataKey="department" type="category" width={120} className="text-xs" />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Duplicates" fill="hsl(0, 84%, 60%)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                      No duplicates found — great!
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Duplicates Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Copy className="h-5 w-5" />
+                  All Flagged Duplicate Projects ({data?.duplicates?.length || 0})
+                </CardTitle>
+                <CardDescription>
+                  Projects automatically flagged by the duplicate detection system based on title and description similarity
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(data?.duplicates?.length || 0) > 0 ? (
+                  <div className="rounded-md border overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Similarity</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data?.duplicates.map((dup) => (
+                          <TableRow key={dup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/projects/${dup.id}`)}>
+                            <TableCell className="font-medium max-w-[200px] truncate">{dup.title}</TableCell>
+                            <TableCell>{dup.student_name}</TableCell>
+                            <TableCell className="max-w-[120px] truncate">{dup.department || '—'}</TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                (dup.similarity_score || 0) >= 80 ? 'destructive' :
+                                (dup.similarity_score || 0) >= 50 ? 'secondary' : 'outline'
+                              }>
+                                {dup.similarity_score != null ? `${dup.similarity_score}%` : 'N/A'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">{dup.status}</Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground text-sm">
+                              {new Date(dup.created_at).toLocaleDateString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <AlertTriangle className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-lg font-medium">No duplicate projects detected</p>
+                    <p className="text-sm">The system hasn't flagged any projects as duplicates yet.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
