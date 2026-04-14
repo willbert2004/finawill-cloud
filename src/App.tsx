@@ -25,6 +25,7 @@ import MyProfile from "./pages/MyProfile";
 import NotFound from "./pages/NotFound";
 import VideoCall from "./pages/VideoCall";
 import SystemDocumentation from "./pages/SystemDocumentation";
+import Duplicates from "./pages/Duplicates";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/create-project" element={<ProtectedRoute allowedRoles={['student', 'admin', 'super_admin']}><CreateProject /></ProtectedRoute>} />
             <Route path="/student-groups" element={<ProtectedRoute allowedRoles={['student', 'admin', 'super_admin']}><StudentGroups /></ProtectedRoute>} />
             <Route path="/repository" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin', 'super_admin']}><Repository /></ProtectedRoute>} />
+            <Route path="/duplicates" element={<ProtectedRoute allowedRoles={['student', 'admin', 'super_admin']}><Duplicates /></ProtectedRoute>} />
 
             {/* Supervisor routes */}
             <Route path="/supervisor-profile" element={<ProtectedRoute allowedRoles={['supervisor']}><SupervisorProfile /></ProtectedRoute>} />

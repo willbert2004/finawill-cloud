@@ -6,6 +6,7 @@ import {
   FolderKanban,
   ClipboardList,
   Archive,
+  Copy,
   
   Sparkles,
   User,
@@ -53,6 +54,7 @@ export function AppSidebar() {
         { name: "Project Workspace", href: "/project-management", icon: ClipboardList, color: "text-secondary" },
         { name: "Create Project", href: "/create-project", icon: ClipboardList, color: "text-secondary" },
         { name: "Student Groups", href: "/student-groups", icon: Users, color: "text-[hsl(var(--accent-gold))]" },
+        { name: "Duplicates", href: "/duplicates", icon: Copy, color: "text-destructive" },
         { name: "Repository", href: "/repository", icon: Archive, color: "text-success" },
       ]
     : [];
