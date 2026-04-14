@@ -377,8 +377,15 @@ export default function Analytics() {
         </div>
 
         <Tabs defaultValue="charts" className="space-y-6">
-          <TabsList className={`grid w-full max-w-md ${isSuperAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          <TabsList className={`grid w-full max-w-lg ${isSuperAdmin ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <TabsTrigger value="charts">Charts & Insights</TabsTrigger>
+            <TabsTrigger value="duplicates" className="flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Duplicates
+              {(data?.totals.totalDuplicates || 0) > 0 && (
+                <Badge variant="destructive" className="ml-1 text-[10px] px-1.5 py-0">{data?.totals.totalDuplicates}</Badge>
+              )}
+            </TabsTrigger>
             {isSuperAdmin && <TabsTrigger value="export">Export Reports</TabsTrigger>}
           </TabsList>
 
