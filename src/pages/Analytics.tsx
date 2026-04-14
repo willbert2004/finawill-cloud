@@ -102,15 +102,20 @@ export default function Analytics() {
         { data: groupAllocations },
         { data: supervisors },
         { data: students },
-        { data: groups }
+        { data: groups },
+        { data: allProfiles }
       ] = await Promise.all([
         supabase.from('projects').select('*'),
         supabase.from('pending_allocations').select('*'),
         supabase.from('group_allocations').select('*'),
         supabase.from('profiles').select('*').eq('user_type', 'supervisor'),
         supabase.from('profiles').select('*').eq('user_type', 'student'),
-        supabase.from('student_groups').select('*')
+        supabase.from('student_groups').select('*'),
+        supabase.from('profiles').select('user_id, full_name, email')
       ]);
+
+      const profileMap = new Map<string, string>();
+      allProfiles?.forEach(p => profileMap.set(p.user_id, p.full_name || p.email));
 
       // Project status distribution
       const statusCounts: Record<string, number> = {};
@@ -147,7 +152,6 @@ export default function Analytics() {
       // Supervisor workload
       const supervisorWorkload = (supervisors || []).slice(0, 10).map(s => {
         const fullName = s.full_name || s.email.split('@')[0];
-        // Remove title prefixes like "Mr.", "Mrs.", "Dr." and show meaningful name
         const cleanName = fullName.replace(/^(Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Prof\.?)\s*/i, '').trim();
         const displayName = cleanName || fullName;
         return {
@@ -169,7 +173,7 @@ export default function Analytics() {
         count
       }));
 
-      // Monthly trends (simulated from created_at)
+      // Monthly trends
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthlyData: Record<string, { projects: number; allocations: number }> = {};
       
@@ -193,19 +197,62 @@ export default function Analytics() {
         allocations: monthlyData[month]?.allocations || 0
       }));
 
+      // Duplicates data
+      const duplicateProjects = (projects || []).filter(p => p.is_duplicate === true);
+      const duplicates: DuplicateProject[] = duplicateProjects.map(p => ({
+        id: p.id,
+        title: p.title,
+        department: p.department,
+        status: p.status,
+        similarity_score: p.similarity_score ? Number(p.similarity_score) : null,
+        student_name: profileMap.get(p.student_id) || 'Unknown',
+        created_at: p.created_at,
+      }));
+
+      // Duplicates by department
+      const dupDeptCounts: Record<string, number> = {};
+      duplicateProjects.forEach(p => {
+        const dept = p.department || 'Unassigned';
+        dupDeptCounts[dept] = (dupDeptCounts[dept] || 0) + 1;
+      });
+      const duplicatesByDept = Object.entries(dupDeptCounts).map(([department, count]) => ({
+        department: department.length > 20 ? department.slice(0, 18) + '...' : department,
+        count
+      }));
+
+      // Similarity score distribution
+      const ranges = [
+        { range: '0-20%', min: 0, max: 20 },
+        { range: '21-40%', min: 21, max: 40 },
+        { range: '41-60%', min: 41, max: 60 },
+        { range: '61-80%', min: 61, max: 80 },
+        { range: '81-100%', min: 81, max: 100 },
+      ];
+      const similarityDistribution = ranges.map(r => ({
+        range: r.range,
+        count: duplicateProjects.filter(p => {
+          const score = p.similarity_score ? Number(p.similarity_score) : 0;
+          return score >= r.min && score <= r.max;
+        }).length
+      }));
+
       setData({
         projectsByStatus,
         allocationsByStatus,
         supervisorWorkload,
         projectsByDepartment,
         monthlyProjects,
+        duplicates,
+        duplicatesByDept,
+        similarityDistribution,
         totals: {
           totalProjects: projects?.length || 0,
           totalAllocations: allAllocations.length,
           pendingAllocations: allAllocations.filter(a => a.status === 'pending').length,
           totalSupervisors: supervisors?.length || 0,
           totalStudents: students?.length || 0,
-          totalGroups: groups?.length || 0
+          totalGroups: groups?.length || 0,
+          totalDuplicates: duplicateProjects.length
         }
       });
     } catch (error) {
