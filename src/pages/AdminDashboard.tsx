@@ -38,25 +38,57 @@ const AdminDashboard = () => {
     const fetchData = async () => {
       try {
         const [
-          { count: usersCount }, { count: groupsCount },
-          { count: allocationsCount }, { count: pendingCount }, { count: supervisorsCount },
-          { data: users }, { data: projects },
+          profilesResult,
+          groupsResult,
+          pendingAllocationsResult,
+          groupAllocationsResult,
+          supervisorsResult,
+          usersResult,
+          projectsResult,
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('student_groups').select('*', { count: 'exact', head: true }),
-          supabase.from('pending_allocations').select('*', { count: 'exact', head: true }),
-          supabase.from('pending_allocations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('pending_allocations').select('id, status'),
+          supabase.from('group_allocations').select('id, status'),
           supabase.from('supervisors').select('*', { count: 'exact', head: true }),
           supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(8),
           supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(20),
         ]);
+
+        if (
+          profilesResult.error ||
+          groupsResult.error ||
+          pendingAllocationsResult.error ||
+          groupAllocationsResult.error ||
+          supervisorsResult.error ||
+          usersResult.error ||
+          projectsResult.error
+        ) {
+          throw (
+            profilesResult.error ||
+            groupsResult.error ||
+            pendingAllocationsResult.error ||
+            groupAllocationsResult.error ||
+            supervisorsResult.error ||
+            usersResult.error ||
+            projectsResult.error
+          );
+        }
+
+        const allAllocations = [
+          ...(pendingAllocationsResult.data || []),
+          ...(groupAllocationsResult.data || []),
+        ];
+
         setStats({
-          totalUsers: usersCount || 0,
-          totalGroups: groupsCount || 0, totalAllocations: allocationsCount || 0,
-          pendingAllocations: pendingCount || 0, totalSupervisors: supervisorsCount || 0,
+          totalUsers: profilesResult.count || 0,
+          totalGroups: groupsResult.count || 0,
+          totalAllocations: allAllocations.length,
+          pendingAllocations: allAllocations.filter((allocation) => allocation.status === 'pending').length,
+          totalSupervisors: supervisorsResult.count || 0,
         });
-        setRecentUsers(users || []);
-        setRecentProjects(projects || []);
+        setRecentUsers(usersResult.data || []);
+        setRecentProjects(projectsResult.data || []);
       } catch (error) { console.error('Error fetching admin data:', error); }
       finally { setLoading(false); }
     };
