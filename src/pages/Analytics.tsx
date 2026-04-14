@@ -23,12 +23,25 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
 
+interface DuplicateProject {
+  id: string;
+  title: string;
+  department: string | null;
+  status: string;
+  similarity_score: number | null;
+  student_name: string;
+  created_at: string;
+}
+
 interface AnalyticsData {
   projectsByStatus: { name: string; value: number; color: string }[];
   allocationsByStatus: { name: string; value: number }[];
   supervisorWorkload: { name: string; current: number; max: number }[];
   projectsByDepartment: { department: string; count: number }[];
   monthlyProjects: { month: string; projects: number; allocations: number }[];
+  duplicates: DuplicateProject[];
+  duplicatesByDept: { department: string; count: number }[];
+  similarityDistribution: { range: string; count: number }[];
   totals: {
     totalProjects: number;
     totalAllocations: number;
@@ -36,6 +49,7 @@ interface AnalyticsData {
     totalSupervisors: number;
     totalStudents: number;
     totalGroups: number;
+    totalDuplicates: number;
   };
 }
 
