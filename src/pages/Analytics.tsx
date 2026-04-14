@@ -699,6 +699,139 @@ export default function Analytics() {
             </Card>
           </TabsContent>
 
+          {/* Failure Patterns Tab */}
+          <TabsContent value="failures" className="space-y-6">
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[
+                { label: 'Rejected Projects', value: data?.failureTotals?.rejected || 0, icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
+                { label: 'Needs Revision', value: data?.failureTotals?.needsRevision || 0, icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning/10' },
+                { label: 'At-Risk (14+ days stale)', value: data?.failureTotals?.atRisk || 0, icon: Clock, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+              ].map((s, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className={`p-2.5 rounded-xl ${s.bg}`}>
+                      <s.icon className={`h-5 w-5 ${s.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{s.value}</p>
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Rejection Reasons */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <XCircle className="h-5 w-5 text-destructive" />
+                    Common Rejection Reasons
+                  </CardTitle>
+                  <CardDescription>Top reasons projects are rejected</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.rejectionReasons?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={data?.rejectionReasons} layout="vertical">
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis type="number" allowDecimals={false} />
+                        <YAxis dataKey="reason" type="category" width={160} className="text-[10px]" />
+                        <Tooltip />
+                        <Bar dataKey="count" name="Rejections" fill="hsl(0, 84%, 60%)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                      <p>No rejected projects yet — great!</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Failures by Department */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Problem Status by Department</CardTitle>
+                  <CardDescription>Rejected &amp; needs revision per department</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.failureByDept?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={data?.failureByDept}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="department" className="text-xs" angle={-45} textAnchor="end" height={80} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="rejected" name="Rejected" fill="hsl(0, 84%, 60%)" stackId="a" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="needs_revision" name="Needs Revision" fill="hsl(38, 92%, 50%)" stackId="a" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                      <p>No failures across departments</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* At-Risk Projects Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-orange-500" />
+                  At-Risk Projects ({data?.atRiskProjects?.length || 0})
+                </CardTitle>
+                <CardDescription>
+                  Projects stuck in pending or needs_revision for 14+ days without updates
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(data?.atRiskProjects?.length || 0) > 0 ? (
+                  <div className="rounded-md border overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Days Stuck</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data?.atRiskProjects.map((p) => (
+                          <TableRow key={p.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/projects/${p.id}`)}>
+                            <TableCell className="font-medium max-w-[200px] truncate">{p.title}</TableCell>
+                            <TableCell>{p.student_name}</TableCell>
+                            <TableCell className="max-w-[120px] truncate">{p.department || '—'}</TableCell>
+                            <TableCell>
+                              <Badge variant={p.status === 'needs_revision' ? 'secondary' : 'outline'} className="capitalize">{p.status.replace('_', ' ')}</Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={p.days_stuck >= 30 ? 'destructive' : 'secondary'}>
+                                {p.days_stuck} days
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <Clock className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-lg font-medium">No at-risk projects</p>
+                    <p className="text-sm">All projects are progressing within expected timelines.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
           {isSuperAdmin && (
           <TabsContent value="export" className="space-y-6">
             <Card>
