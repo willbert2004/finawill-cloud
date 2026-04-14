@@ -349,6 +349,13 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
             <form onSubmit={handleSubmit} className="space-y-2">
 
               {/* Only student registration is allowed publicly. Supervisor and Admin accounts are created by administrators. */}
+              <div className="space-y-1">
+                <Label className="text-xs font-semibold text-foreground">Account Type</Label>
+                <div className="flex items-center gap-2 rounded-lg border-2 border-primary bg-primary/5 p-2 w-fit">
+                  <GraduationCap className="h-4 w-4 text-primary" />
+                  <span className="text-xs font-medium text-primary">Student</span>
+                </div>
+              </div>
 
               {userType === 'student' && (
                 <div className="grid grid-cols-2 gap-2">
