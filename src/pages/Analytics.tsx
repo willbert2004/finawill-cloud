@@ -14,10 +14,14 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
+import { Badge } from '@/components/ui/badge';
 import { 
-  Download, FileText, Table, TrendingUp, Users, FolderKanban, 
-  GitBranch, Loader2, ArrowLeft 
+  Download, FileText, Table as TableIcon, TrendingUp, Users, FolderKanban, 
+  GitBranch, Loader2, ArrowLeft, AlertTriangle, Copy
 } from 'lucide-react';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
+} from '@/components/ui/table';
 
 interface AnalyticsData {
   projectsByStatus: { name: string; value: number; color: string }[];
