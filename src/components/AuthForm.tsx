@@ -348,22 +348,7 @@ export function AuthForm({ onSuccess }: AuthFormProps) {
           <TabsContent value="signup">
             <form onSubmit={handleSubmit} className="space-y-2">
 
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold text-foreground">Account Type</Label>
-                <RadioGroup value={userType} onValueChange={(v) => setUserType(v as any)} className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { value: 'student', label: 'Student', icon: GraduationCap },
-                    { value: 'supervisor', label: 'Supervisor', icon: User },
-                    { value: 'super_admin', label: 'Super Admin', icon: Shield },
-                  ].map(({ value, label, icon: Icon }) => (
-                    <Label key={value} htmlFor={`type-${value}`} className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2 cursor-pointer transition-all text-center ${userType === value ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
-                      <RadioGroupItem value={value} id={`type-${value}`} className="sr-only" />
-                      <Icon className={`h-4 w-4 ${userType === value ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <span className={`text-[10px] font-medium ${userType === value ? 'text-primary' : 'text-muted-foreground'}`}>{label}</span>
-                    </Label>
-                  ))}
-                </RadioGroup>
-              </div>
+              {/* Only student registration is allowed publicly. Supervisor and Admin accounts are created by administrators. */}
 
               {userType === 'student' && (
                 <div className="grid grid-cols-2 gap-2">
