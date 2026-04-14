@@ -378,7 +378,7 @@ export default function Analytics() {
                     <BarChart data={data?.supervisorWorkload} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis type="number" />
-                      <YAxis dataKey="name" type="category" width={60} className="text-xs" />
+                      <YAxis dataKey="name" type="category" width={120} className="text-xs" />
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="current" fill="hsl(var(--primary))" name="Current" radius={[0, 4, 4, 0]} />
