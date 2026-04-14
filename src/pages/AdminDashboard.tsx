@@ -44,8 +44,8 @@ const AdminDashboard = () => {
         ] = await Promise.all([
           supabase.from('profiles').select('*', { count: 'exact', head: true }),
           supabase.from('student_groups').select('*', { count: 'exact', head: true }),
-          supabase.from('group_allocations').select('*', { count: 'exact', head: true }),
-          supabase.from('group_allocations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+          supabase.from('pending_allocations').select('*', { count: 'exact', head: true }),
+          supabase.from('pending_allocations').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabase.from('supervisors').select('*', { count: 'exact', head: true }),
           supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(8),
           supabase.from('projects').select('*').order('created_at', { ascending: false }).limit(20),
