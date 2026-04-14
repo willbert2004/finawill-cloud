@@ -25,6 +25,7 @@ import MyProfile from "./pages/MyProfile";
 import NotFound from "./pages/NotFound";
 import VideoCall from "./pages/VideoCall";
 import SystemDocumentation from "./pages/SystemDocumentation";
+import Duplicates from "./pages/Duplicates";
 
 const queryClient = new QueryClient();
 

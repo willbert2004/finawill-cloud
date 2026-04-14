@@ -6,6 +6,7 @@ import {
   FolderKanban,
   ClipboardList,
   Archive,
+  Copy,
   
   Sparkles,
   User,
