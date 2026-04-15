@@ -353,6 +353,7 @@ ${projectList}`;
       }),
     });
 
+    clearTimeout(timeout);
     if (!response.ok) {
       console.error(`LLM scoring failed [${response.status}]`);
       // Fall back to TF-IDF scores
