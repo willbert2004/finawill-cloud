@@ -507,34 +507,23 @@ serve(async (req) => {
     if (fetchError) throw fetchError;
     const allProjects: Project[] = existingProjects || [];
 
-    console.log(`[check-duplicate] ${allProjects.length} existing projects, ${concepts.length} concepts extracted`);
+    console.log(`[check-duplicate] ${allProjects.length} existing projects`);
 
-    // ── Phase 1a: TF-IDF cosine similarity ──
+    // ── Phase 1: TF-IDF cosine similarity ──
     const tfidfResults = computeFieldSimilarity({ title, objectives, description }, allProjects);
     tfidfResults.sort((a, b) => b.score - a.score);
 
     // Get TF-IDF candidates above threshold
-    const tfidfCandidateIds = new Set<string>();
     const tfidfCandidates = tfidfResults
       .filter(r => r.score >= TFIDF_PREFILTER_THRESHOLD)
       .slice(0, MAX_TFIDF_CANDIDATES);
-    tfidfCandidates.forEach(c => tfidfCandidateIds.add(c.project.id));
 
-    // ── Phase 1b: Concept-based candidates (catches what TF-IDF missed) ──
-    const conceptMatches = findConceptMatches(concepts, allProjects, tfidfCandidateIds);
-    console.log(`[check-duplicate] TF-IDF candidates: ${tfidfCandidates.length}, Concept candidates: ${conceptMatches.length}`);
+    console.log(`[check-duplicate] TF-IDF candidates: ${tfidfCandidates.length}`);
 
-    // ── Merge candidates for LLM scoring ──
+    // ── Prepare candidates for LLM scoring ──
     const mergedCandidates: { project: Project; tfidfScore: number }[] = [];
-
-    // Add TF-IDF candidates with their scores
     for (const c of tfidfCandidates) {
       mergedCandidates.push({ project: c.project, tfidfScore: c.score });
-    }
-
-    // Add concept-matched candidates (with tfidfScore = 0 since TF-IDF missed them)
-    for (const p of conceptMatches) {
-      mergedCandidates.push({ project: p, tfidfScore: 0 });
     }
 
     // Limit total candidates sent to LLM
