@@ -733,23 +733,44 @@ export default function Analytics() {
                 </CardHeader>
                 <CardContent>
                   {(data?.rejectionReasons?.length || 0) > 0 ? (
-                    <ResponsiveContainer width="100%" height={Math.max(250, (data?.rejectionReasons?.length || 1) * 60)}>
-                      <BarChart data={data?.rejectionReasons} layout="vertical" margin={{ left: 20 }}>
+                    <ResponsiveContainer width="100%" height={Math.max(300, (data?.rejectionReasons?.length || 1) * 80)}>
+                      <BarChart data={data?.rejectionReasons} layout="vertical" margin={{ left: 10, right: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis type="number" allowDecimals={false} />
                         <YAxis 
                           dataKey="reason" 
                           type="category" 
-                          width={280} 
-                          className="text-[10px]" 
-                          tick={({ x, y, payload }) => (
-                            <text x={x} y={y} dy={4} textAnchor="end" fill="currentColor" fontSize={10}>
-                              <title>{payload.value}</title>
-                              {payload.value.length > 50 ? payload.value.slice(0, 48) + '…' : payload.value}
-                            </text>
-                          )}
+                          width={300} 
+                          tick={(props: any) => {
+                            const { x, y, payload } = props;
+                            const text = payload.value || '';
+                            const maxChars = 45;
+                            const lines: string[] = [];
+                            for (let i = 0; i < text.length; i += maxChars) {
+                              lines.push(text.slice(i, i + maxChars));
+                            }
+                            return (
+                              <g>
+                                {lines.map((line: string, idx: number) => (
+                                  <text
+                                    key={idx}
+                                    x={x - 5}
+                                    y={y + (idx - (lines.length - 1) / 2) * 12}
+                                    textAnchor="end"
+                                    fill="currentColor"
+                                    fontSize={10}
+                                  >
+                                    {line}
+                                  </text>
+                                ))}
+                              </g>
+                            );
+                          }}
                         />
-                        <Tooltip formatter={(value: number) => [value, 'Rejections']} labelFormatter={(label: string) => label} />
+                        <Tooltip 
+                          formatter={(value: number) => [value, 'Rejections']} 
+                          labelStyle={{ whiteSpace: 'normal', maxWidth: 300 }}
+                        />
                         <Bar dataKey="count" name="Rejections" fill="hsl(0, 84%, 60%)" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
