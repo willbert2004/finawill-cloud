@@ -607,8 +607,9 @@ serve(async (req) => {
         possible: { min: thresholds.possible.min_score, max: thresholds.possible.max_score },
         low: { min: thresholds.low.min_score, max: thresholds.low.max_score },
       },
-      algorithm: 'tfidf-llm-semantic',
+      algorithm: 'tfidf-concept-extraction-llm-semantic',
       weights: WEIGHTS,
+      conceptsExtracted: concepts.length,
       similarProjects: similarities.slice(0, 5).map(s => {
         const classification = classifyScore(s.score, thresholds);
         return {
