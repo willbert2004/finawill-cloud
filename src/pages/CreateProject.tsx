@@ -165,8 +165,21 @@ export default function CreateProject() {
       return;
     }
 
-    // Block if duplicate detected
+    // If duplicate detected, save the project as a flagged duplicate for institutional tracking, then block
     if (duplicateResult?.isDuplicate && !resubmitId && !isFinished) {
+      try {
+        await supabase.from('projects').insert({
+          title: formData.title, description: formData.description, objectives: formData.objectives,
+          student_id: user.id, department: formData.department,
+          keywords: buildProjectKeywords(formData.category),
+          status: 'rejected',
+          similarity_score: duplicateResult?.highestSimilarity || 0,
+          is_duplicate: true,
+          rejection_reason: duplicateResult?.message || 'Flagged as duplicate',
+        });
+      } catch (saveErr) {
+        console.error('Failed to save duplicate record:', saveErr);
+      }
       toast({ title: "Submission Blocked", description: "Your project is too similar to existing ones. Please modify your proposal.", variant: "destructive" });
       return;
     }
