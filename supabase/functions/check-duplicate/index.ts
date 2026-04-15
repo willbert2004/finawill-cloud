@@ -178,7 +178,10 @@ async function extractConcepts(
   apiKey: string
 ): Promise<string[]> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      signal: controller.signal,
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -219,6 +222,7 @@ async function extractConcepts(
       }),
     });
 
+    clearTimeout(timeout);
     if (!response.ok) {
       console.error(`Concept extraction failed [${response.status}]`);
       return [];
@@ -303,7 +307,10 @@ EXISTING PROJECTS:
 ${projectList}`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      signal: controller.signal,
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -346,6 +353,7 @@ ${projectList}`;
       }),
     });
 
+    clearTimeout(timeout);
     if (!response.ok) {
       console.error(`LLM scoring failed [${response.status}]`);
       // Fall back to TF-IDF scores
@@ -488,46 +496,34 @@ serve(async (req) => {
       );
     }
 
-    // Load thresholds & existing projects & extract concepts — all in parallel
-    const [thresholds, { data: existingProjects, error: fetchError }, concepts] = await Promise.all([
+    // Load thresholds & existing projects in parallel
+    const [thresholds, { data: existingProjects, error: fetchError }] = await Promise.all([
       loadThresholds(adminClient),
       adminClient
         .from('projects')
         .select('id, title, objectives, description, student_id, supervisor_id, year'),
-      extractConcepts({ title, objectives, description }, lovableApiKey),
     ]);
 
     if (fetchError) throw fetchError;
     const allProjects: Project[] = existingProjects || [];
 
-    console.log(`[check-duplicate] ${allProjects.length} existing projects, ${concepts.length} concepts extracted`);
+    console.log(`[check-duplicate] ${allProjects.length} existing projects`);
 
-    // ── Phase 1a: TF-IDF cosine similarity ──
+    // ── Phase 1: TF-IDF cosine similarity ──
     const tfidfResults = computeFieldSimilarity({ title, objectives, description }, allProjects);
     tfidfResults.sort((a, b) => b.score - a.score);
 
     // Get TF-IDF candidates above threshold
-    const tfidfCandidateIds = new Set<string>();
     const tfidfCandidates = tfidfResults
       .filter(r => r.score >= TFIDF_PREFILTER_THRESHOLD)
       .slice(0, MAX_TFIDF_CANDIDATES);
-    tfidfCandidates.forEach(c => tfidfCandidateIds.add(c.project.id));
 
-    // ── Phase 1b: Concept-based candidates (catches what TF-IDF missed) ──
-    const conceptMatches = findConceptMatches(concepts, allProjects, tfidfCandidateIds);
-    console.log(`[check-duplicate] TF-IDF candidates: ${tfidfCandidates.length}, Concept candidates: ${conceptMatches.length}`);
+    console.log(`[check-duplicate] TF-IDF candidates: ${tfidfCandidates.length}`);
 
-    // ── Merge candidates for LLM scoring ──
+    // ── Prepare candidates for LLM scoring ──
     const mergedCandidates: { project: Project; tfidfScore: number }[] = [];
-
-    // Add TF-IDF candidates with their scores
     for (const c of tfidfCandidates) {
       mergedCandidates.push({ project: c.project, tfidfScore: c.score });
-    }
-
-    // Add concept-matched candidates (with tfidfScore = 0 since TF-IDF missed them)
-    for (const p of conceptMatches) {
-      mergedCandidates.push({ project: p, tfidfScore: 0 });
     }
 
     // Limit total candidates sent to LLM
@@ -603,9 +599,8 @@ serve(async (req) => {
         possible: { min: thresholds.possible.min_score, max: thresholds.possible.max_score },
         low: { min: thresholds.low.min_score, max: thresholds.low.max_score },
       },
-      algorithm: 'tfidf-concept-extraction-llm-semantic',
+      algorithm: 'tfidf-llm-semantic',
       weights: WEIGHTS,
-      conceptsExtracted: concepts.length,
       similarProjects: similarities.slice(0, 5).map(s => {
         const classification = classifyScore(s.score, thresholds);
         return {
