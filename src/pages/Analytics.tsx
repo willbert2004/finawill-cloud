@@ -283,8 +283,7 @@ export default function Analytics() {
       const reasonCounts: Record<string, number> = {};
       rejectedProjects.forEach(p => {
         const reason = p.rejection_reason?.trim() || 'No reason given';
-        const short = reason.length > 40 ? reason.slice(0, 38) + '…' : reason;
-        reasonCounts[short] = (reasonCounts[short] || 0) + 1;
+        reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
       });
       const rejectionReasons = Object.entries(reasonCounts)
         .map(([reason, count]) => ({ reason, count }))
@@ -734,12 +733,23 @@ export default function Analytics() {
                 </CardHeader>
                 <CardContent>
                   {(data?.rejectionReasons?.length || 0) > 0 ? (
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={data?.rejectionReasons} layout="vertical">
+                    <ResponsiveContainer width="100%" height={Math.max(250, (data?.rejectionReasons?.length || 1) * 60)}>
+                      <BarChart data={data?.rejectionReasons} layout="vertical" margin={{ left: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis type="number" allowDecimals={false} />
-                        <YAxis dataKey="reason" type="category" width={160} className="text-[10px]" />
-                        <Tooltip />
+                        <YAxis 
+                          dataKey="reason" 
+                          type="category" 
+                          width={280} 
+                          className="text-[10px]" 
+                          tick={({ x, y, payload }) => (
+                            <text x={x} y={y} dy={4} textAnchor="end" fill="currentColor" fontSize={10}>
+                              <title>{payload.value}</title>
+                              {payload.value.length > 50 ? payload.value.slice(0, 48) + '…' : payload.value}
+                            </text>
+                          )}
+                        />
+                        <Tooltip formatter={(value: number) => [value, 'Rejections']} labelFormatter={(label: string) => label} />
                         <Bar dataKey="count" name="Rejections" fill="hsl(0, 84%, 60%)" radius={[0, 4, 4, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
