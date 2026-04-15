@@ -178,7 +178,10 @@ async function extractConcepts(
   apiKey: string
 ): Promise<string[]> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      signal: controller.signal,
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
