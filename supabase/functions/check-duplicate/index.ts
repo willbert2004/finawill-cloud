@@ -488,13 +488,12 @@ serve(async (req) => {
       );
     }
 
-    // Load thresholds & existing projects & extract concepts — all in parallel
-    const [thresholds, { data: existingProjects, error: fetchError }, concepts] = await Promise.all([
+    // Load thresholds & existing projects in parallel
+    const [thresholds, { data: existingProjects, error: fetchError }] = await Promise.all([
       loadThresholds(adminClient),
       adminClient
         .from('projects')
         .select('id, title, objectives, description, student_id, supervisor_id, year'),
-      extractConcepts({ title, objectives, description }, lovableApiKey),
     ]);
 
     if (fetchError) throw fetchError;
