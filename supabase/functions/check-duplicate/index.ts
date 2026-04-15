@@ -307,7 +307,10 @@ EXISTING PROJECTS:
 ${projectList}`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      signal: controller.signal,
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
