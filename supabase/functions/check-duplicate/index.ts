@@ -222,6 +222,7 @@ async function extractConcepts(
       }),
     });
 
+    clearTimeout(timeout);
     if (!response.ok) {
       console.error(`Concept extraction failed [${response.status}]`);
       return [];
