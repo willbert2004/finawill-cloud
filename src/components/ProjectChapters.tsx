@@ -17,6 +17,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
 import { BookOpen, Upload, Download, Plus, MessageSquare, FileCheck, FileWarning, FileX } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 interface Props {
   projectId: string;
@@ -93,8 +94,42 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
 
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Loading chapters...</div>;
 
+  // Per-project chapter status breakdown (visible to everyone on this tab)
+  const counts = (chapters || []).reduce(
+    (acc, c: any) => {
+      acc.total += 1;
+      if (c.status in acc) (acc as any)[c.status] += 1;
+      return acc;
+    },
+    { total: 0, draft: 0, submitted: 0, needs_revision: 0, approved: 0, rejected: 0 } as any,
+  );
+  const progressPct = counts.total > 0 ? Math.round((counts.approved / counts.total) * 100) : 0;
+
   return (
     <div className="space-y-4">
+      {/* Progress overview — shows current state of this project's chapters to student, supervisor and admin */}
+      {!!chapters?.length && (
+        <Card className="border-primary/10">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-semibold">Project chapter progress</h4>
+                <p className="text-xs text-muted-foreground">{counts.approved} of {counts.total} chapters approved</p>
+              </div>
+              <span className="text-lg font-bold text-success">{progressPct}%</span>
+            </div>
+            <Progress value={progressPct} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary" />
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
+              <MiniStat label="Draft" value={counts.draft} cls="bg-muted text-muted-foreground" />
+              <MiniStat label="Submitted" value={counts.submitted} cls="bg-primary/10 text-primary" />
+              <MiniStat label="Needs revision" value={counts.needs_revision} cls="bg-warning/10 text-warning" />
+              <MiniStat label="Approved" value={counts.approved} cls="bg-success/10 text-success" />
+              <MiniStat label="Rejected" value={counts.rejected} cls="bg-destructive/10 text-destructive" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Dissertation Chapters</h3>
@@ -370,3 +405,10 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
     </div>
   );
 };
+
+const MiniStat = ({ label, value, cls }: { label: string; value: number; cls: string }) => (
+  <div className={`rounded-md p-2 ${cls}`}>
+    <div className="text-base font-bold leading-none">{value}</div>
+    <div className="text-[10px] mt-1 opacity-80">{label}</div>
+  </div>
+);

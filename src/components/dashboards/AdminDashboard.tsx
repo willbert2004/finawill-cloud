@@ -7,6 +7,7 @@ import {
   ArrowRight, Briefcase, CheckCircle, Clock, Users,
   AlertTriangle, TrendingUp, Loader2,
 } from "lucide-react";
+import { ChapterProgressCard } from "@/components/ChapterProgressCard";
 
 interface AdminDashboardProps {
   user: any;
@@ -98,6 +99,12 @@ export function AdminDashboard({ user, projectStats, recentProjects, groupCount,
           </Card>
         ))}
       </div>
+
+      {/* System-wide chapter progress */}
+      <ChapterProgressCard
+        title="System Chapter Activity"
+        description="All projects across departments"
+      />
 
       {/* Recent Projects - Full Width Bottom */}
       <Card>

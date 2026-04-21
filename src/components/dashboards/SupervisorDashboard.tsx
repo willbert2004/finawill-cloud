@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { MeetingScheduler } from "@/components/MeetingScheduler";
 import { SupervisorAllocatedGroups } from "@/components/SupervisorAllocatedGroups";
+import { ChapterProgressCard } from "@/components/ChapterProgressCard";
 
 interface SupervisorDashboardProps {
   user: any;
@@ -162,6 +163,10 @@ export function SupervisorDashboard({ user, projectStats, recentProjects, groupC
 
         {/* RIGHT */}
         <div className="lg:col-span-2 space-y-4">
+          <ChapterProgressCard
+            title="Student Chapter Pipeline"
+            description="Across projects you supervise"
+          />
           <SupervisorAllocatedGroups />
           <MeetingScheduler />
         </div>
