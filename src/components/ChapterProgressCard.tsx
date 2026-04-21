@@ -53,11 +53,11 @@ export function ChapterProgressCard({
         <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-muted-foreground">Approved progress</span>
-            <span className="font-semibold text-success">{loading ? "—" : `${progressPct}%`}</span>
+            <span className={`font-semibold ${progressClasses.text}`}>{loading ? "—" : `${progressPct}%`}</span>
           </div>
           <Progress
             value={progressPct}
-            className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary"
+            className={`h-2.5 ${progressClasses.bar}`}
           />
         </div>
         <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} gap-2`}>
