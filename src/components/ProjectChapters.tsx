@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
-import { BookOpen, Upload, Download, Plus, MessageSquare, FileCheck, FileWarning, FileX } from 'lucide-react';
+import { BookOpen, Upload, Download, Plus, MessageSquare, FileCheck, FileWarning, FileX, PackageCheck, FileArchive } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 interface Props {
@@ -39,6 +39,35 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
   const [newChapterOpen, setNewChapterOpen] = useState(false);
   const [chTitle, setChTitle] = useState('');
   const [chDesc, setChDesc] = useState('');
+
+  const { data: project } = useQuery({
+    queryKey: ['project-status', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, title, status, student_id')
+        .eq('id', projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: finalZip, refetch: refetchFinalZip } = useQuery({
+    queryKey: ['project-final-zip', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_documents')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('document_type', 'final_zip')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: chapters, isLoading } = useQuery({
     queryKey: ['project-chapters', projectId],
@@ -128,6 +157,18 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Final submission panel — shown when project is finalized (all chapters approved, ≥6) */}
+      {project?.status === 'finalized' && (
+        <FinalSubmissionPanel
+          projectId={projectId}
+          isStudent={isStudent}
+          finalZip={finalZip}
+          userId={user?.id}
+          onUploaded={() => refetchFinalZip()}
+          onDownload={downloadFile}
+        />
       )}
 
       <div className="flex items-center justify-between">
@@ -412,3 +453,95 @@ const MiniStat = ({ label, value, cls }: { label: string; value: number; cls: st
     <div className="text-[10px] mt-1 opacity-80">{label}</div>
   </div>
 );
+
+interface FinalPanelProps {
+  projectId: string;
+  isStudent: boolean;
+  finalZip: any;
+  userId?: string;
+  onUploaded: () => void;
+  onDownload: (path: string, name: string) => void;
+}
+
+const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUploaded, onDownload }: FinalPanelProps) => {
+  const [uploading, setUploading] = useState(false);
+
+  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    if (!/\.(zip|rar|7z)$/i.test(file.name)) {
+      toast.error('Please upload a .zip (or .rar/.7z) archive containing your documentation and prototype.');
+      e.target.value = '';
+      return;
+    }
+    setUploading(true);
+    try {
+      const path = `${projectId}/final/${Date.now()}-${file.name}`;
+      const { error: upErr } = await supabase.storage.from('project-chapters').upload(path, file);
+      if (upErr) throw upErr;
+      const { error: insErr } = await supabase.from('project_documents').insert({
+        project_id: projectId,
+        document_type: 'final_zip',
+        file_path: path,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        uploaded_by: userId,
+        description: 'Final compiled submission (documentation + prototype)',
+      });
+      if (insErr) throw insErr;
+      toast.success('Final submission uploaded');
+      onUploaded();
+    } catch (err: any) {
+      toast.error(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  return (
+    <Card className="border-success/30 bg-success/5">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <PackageCheck className="h-5 w-5 text-success" />
+          Project finalized — final submission
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          All chapters have been approved. {isStudent
+            ? 'Compile your final documentation and prototype into a single ZIP archive and upload it below.'
+            : 'Awaiting the student to upload the final ZIP containing documentation and prototype.'}
+        </p>
+
+        {finalZip ? (
+          <div className="flex items-center justify-between p-3 rounded-md border bg-background/60">
+            <div className="text-sm flex items-center gap-2">
+              <FileArchive className="h-4 w-4 text-success" />
+              <div>
+                <div className="font-medium">{finalZip.file_name}</div>
+                <div className="text-xs text-muted-foreground">
+                  Submitted {new Date(finalZip.created_at).toLocaleString()}
+                </div>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => onDownload(finalZip.file_path, finalZip.file_name)}>
+              <Download className="h-4 w-4 mr-1" />Download
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground italic">No final submission uploaded yet.</p>
+        )}
+
+        {isStudent && (
+          <div className="space-y-2">
+            <Label className="text-sm">{finalZip ? 'Replace with a new version' : 'Upload final ZIP'}</Label>
+            <Input type="file" onChange={handleZipUpload} disabled={uploading} accept=".zip,.rar,.7z" />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
