@@ -22,6 +22,16 @@ export function ChapterProgressCard({
   const approvedOutOfRequired = Math.min(stats.approved, REQUIRED_CHAPTERS);
   const progressPct = Math.round((approvedOutOfRequired / REQUIRED_CHAPTERS) * 100);
 
+  // Color tiers based on progress level
+  const getProgressClasses = (pct: number) => {
+    if (pct >= 100) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-success", text: "text-success" };
+    if (pct >= 75) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary", text: "text-success" };
+    if (pct >= 50) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-primary [&>div]:to-secondary", text: "text-primary" };
+    if (pct >= 25) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-warning [&>div]:to-primary", text: "text-warning" };
+    return { bar: "[&>div]:bg-destructive", text: "text-destructive" };
+  };
+  const progressClasses = getProgressClasses(progressPct);
+
   return (
     <Card className="border-primary/10 shadow-card overflow-hidden">
       <div className="h-1 bg-gradient-to-r from-primary via-secondary to-success" />
@@ -43,11 +53,11 @@ export function ChapterProgressCard({
         <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-muted-foreground">Approved progress</span>
-            <span className="font-semibold text-success">{loading ? "—" : `${progressPct}%`}</span>
+            <span className={`font-semibold ${progressClasses.text}`}>{loading ? "—" : `${progressPct}%`}</span>
           </div>
           <Progress
             value={progressPct}
-            className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary"
+            className={`h-2.5 ${progressClasses.bar}`}
           />
         </div>
         <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} gap-2`}>
