@@ -13,7 +13,8 @@ import { ProjectDocuments } from '@/components/ProjectDocuments';
 import { ProjectTimeline } from '@/components/ProjectTimeline';
 import { SupervisorFeedback } from '@/components/SupervisorFeedback';
 import { PhaseTemplateManager } from '@/components/PhaseTemplateManager';
-import { FileText, Calendar, MessageSquare, FolderOpen, Layers } from 'lucide-react';
+import { ProjectChapters } from '@/components/ProjectChapters';
+import { FileText, Calendar, MessageSquare, FolderOpen, Layers, BookOpen } from 'lucide-react';
 
 const ProjectManagement = () => {
   const { user } = useAuth();
@@ -135,8 +136,14 @@ const ProjectManagement = () => {
                   </div>
                 )}
 
-                <Tabs defaultValue={isAdmin && !isSupervisor ? "timeline" : "documents"} className="space-y-6">
-                  <TabsList className={`grid w-full ${isAdmin && !isSupervisor ? 'grid-cols-1 lg:w-auto lg:inline-grid' : 'grid-cols-3 lg:w-auto lg:inline-grid'}`}>
+                <Tabs defaultValue={isAdmin && !isSupervisor ? "timeline" : "chapters"} className="space-y-6">
+                  <TabsList className={`grid w-full ${isAdmin && !isSupervisor ? 'grid-cols-1 lg:w-auto lg:inline-grid' : 'grid-cols-2 sm:grid-cols-4 lg:w-auto lg:inline-grid'}`}>
+                    {!(isAdmin && !isSupervisor) && (
+                      <TabsTrigger value="chapters" className="flex items-center gap-2">
+                        <BookOpen className="h-4 w-4" />
+                        <span className="hidden sm:inline">Chapters</span>
+                      </TabsTrigger>
+                    )}
                     {!(isAdmin && !isSupervisor) && (
                       <TabsTrigger value="documents" className="flex items-center gap-2">
                         <FileText className="h-4 w-4" />
@@ -154,6 +161,16 @@ const ProjectManagement = () => {
                       </TabsTrigger>
                     )}
                   </TabsList>
+
+                  {!(isAdmin && !isSupervisor) && (
+                    <TabsContent value="chapters">
+                      <ProjectChapters
+                        projectId={selectedProjectId}
+                        isStudent={!isSupervisor && !isAdmin}
+                        isSupervisor={isSupervisor}
+                      />
+                    </TabsContent>
+                  )}
 
                   {!(isAdmin && !isSupervisor) && (
                     <TabsContent value="documents">
