@@ -40,6 +40,35 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
   const [chTitle, setChTitle] = useState('');
   const [chDesc, setChDesc] = useState('');
 
+  const { data: project } = useQuery({
+    queryKey: ['project-status', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, title, status, student_id')
+        .eq('id', projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: finalZip, refetch: refetchFinalZip } = useQuery({
+    queryKey: ['project-final-zip', projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('project_documents')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('document_type', 'final_zip')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: chapters, isLoading } = useQuery({
     queryKey: ['project-chapters', projectId],
     queryFn: async () => {
