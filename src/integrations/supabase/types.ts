@@ -602,6 +602,47 @@ export type Database = {
           },
         ]
       }
+      project_ratings: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          project_id: string
+          score: number | null
+          status: string
+          supervisor_id: string
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          project_id: string
+          score?: number | null
+          status?: string
+          supervisor_id: string
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          project_id?: string
+          score?: number | null
+          status?: string
+          supervisor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_ratings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_revisions: {
         Row: {
           change_notes: string | null
@@ -960,6 +1001,10 @@ export type Database = {
       }
     }
     Functions: {
+      finalize_project_allocation: {
+        Args: { _project_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -969,6 +1014,7 @@ export type Database = {
       }
       is_admin_or_super: { Args: { _user_id: string }; Returns: boolean }
       is_supervisor: { Args: { _user_id: string }; Returns: boolean }
+      seed_project_ratings: { Args: { _project_id: string }; Returns: number }
       user_created_group: {
         Args: { _group_id: string; _user_id: string }
         Returns: boolean
