@@ -167,9 +167,9 @@ const PendingReviews = () => {
         </Card>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
+          <DialogContent className="max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Rate: {active?.projects?.title}</DialogTitle>
+              <DialogTitle className="pr-6">Rate: {active?.projects?.title}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div className="text-sm text-muted-foreground space-y-2">
