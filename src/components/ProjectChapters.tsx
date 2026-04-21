@@ -145,7 +145,7 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-semibold">Project chapter progress</h4>
-                <p className="text-xs text-muted-foreground">{counts.approved} of {counts.total} chapters approved</p>
+                <p className="text-xs text-muted-foreground">{approvedOutOfRequired} of {REQUIRED_CHAPTERS} chapters approved</p>
               </div>
               <span className="text-lg font-bold text-success">{progressPct}%</span>
             </div>
