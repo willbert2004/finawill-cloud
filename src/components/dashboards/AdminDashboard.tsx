@@ -7,6 +7,7 @@ import {
   ArrowRight, Briefcase, CheckCircle, Clock, Users,
   AlertTriangle, TrendingUp, Loader2,
 } from "lucide-react";
+import { ChapterProgressCard } from "@/components/ChapterProgressCard";
 
 interface AdminDashboardProps {
   user: any;
