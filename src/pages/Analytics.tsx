@@ -46,6 +46,16 @@ interface FailureProject {
   days_stuck: number;
 }
 
+interface StalledChapter {
+  id: string;
+  title: string;
+  project_title: string;
+  project_id: string;
+  student_name: string;
+  status: string;
+  days_stuck: number;
+}
+
 interface AnalyticsData {
   projectsByStatus: { name: string; value: number; color: string }[];
   allocationsByStatus: { name: string; value: number }[];
@@ -60,6 +70,23 @@ interface AnalyticsData {
   failureByDept: { department: string; rejected: number; needs_revision: number }[];
   atRiskProjects: FailureProject[];
   failureTotals: { rejected: number; needsRevision: number; atRisk: number };
+  // Chapters
+  chapterStatusBreakdown: { name: string; value: number; color: string }[];
+  chaptersByDepartment: { department: string; approved: number; submitted: number; needs_revision: number; draft: number; rejected: number }[];
+  chapterSubmissionsTrend: { week: string; submissions: number; approvals: number }[];
+  stalledChapters: StalledChapter[];
+  projectCompletion: { range: string; count: number }[];
+  chapterTotals: {
+    totalChapters: number;
+    approved: number;
+    submitted: number;
+    needsRevision: number;
+    draft: number;
+    rejected: number;
+    completionRate: number;
+    finalizedProjects: number;
+    avgApprovalDays: number | null;
+  };
   totals: {
     totalProjects: number;
     totalAllocations: number;
