@@ -779,6 +779,219 @@ export default function Analytics() {
             </Card>
           </TabsContent>
 
+
+          {/* Chapters Tab */}
+          <TabsContent value="chapters" className="space-y-6">
+            {/* Chapter summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { label: 'Total Chapters', value: data?.chapterTotals?.totalChapters || 0, icon: BookOpen, bg: 'bg-primary/10', color: 'text-primary' },
+                { label: 'Approved', value: data?.chapterTotals?.approved || 0, icon: FileCheck, bg: 'bg-success/10', color: 'text-success' },
+                { label: 'Submitted', value: data?.chapterTotals?.submitted || 0, icon: Upload, bg: 'bg-primary/10', color: 'text-primary' },
+                { label: 'Needs Revision', value: data?.chapterTotals?.needsRevision || 0, icon: FileWarning, bg: 'bg-warning/10', color: 'text-warning' },
+                { label: 'Finalized Projects', value: data?.chapterTotals?.finalizedProjects || 0, icon: CheckCircle2, bg: 'bg-success/10', color: 'text-success' },
+                { label: 'Avg Approval (days)', value: data?.chapterTotals?.avgApprovalDays ?? '—', icon: Clock, bg: 'bg-secondary/10', color: 'text-secondary' },
+              ].map((s, i) => (
+                <Card key={i}>
+                  <CardContent className="p-3 flex items-center gap-2.5">
+                    <div className={`p-2 rounded-lg ${s.bg}`}>
+                      <s.icon className={`h-4 w-4 ${s.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold leading-none">{s.value}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Overall completion banner */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Overall Chapter Completion Rate
+                </CardTitle>
+                <CardDescription>Percentage of all chapters across all projects that have been approved</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-3 mb-2">
+                  <span className="text-4xl font-bold text-primary">{data?.chapterTotals?.completionRate || 0}%</span>
+                  <span className="text-sm text-muted-foreground mb-1">
+                    {data?.chapterTotals?.approved || 0} of {data?.chapterTotals?.totalChapters || 0} chapters approved
+                  </span>
+                </div>
+                <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary via-secondary to-success transition-all"
+                    style={{ width: `${data?.chapterTotals?.completionRate || 0}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Chapter status breakdown pie */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Chapter Status Breakdown</CardTitle>
+                  <CardDescription>Distribution of chapter statuses across the platform</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.chapterStatusBreakdown?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie
+                          data={data?.chapterStatusBreakdown}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={85}
+                          dataKey="value"
+                        >
+                          {data?.chapterStatusBreakdown.map((entry, index) => (
+                            <Cell key={`ch-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[260px] flex items-center justify-center text-muted-foreground">No chapter data yet</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Project completion distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Project Completion Distribution</CardTitle>
+                  <CardDescription>How many projects fall in each completion bucket</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={data?.projectCompletion}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="range" className="text-xs" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="count" name="Projects" radius={[4, 4, 0, 0]}>
+                        {data?.projectCompletion.map((_, i) => (
+                          <Cell key={i} fill={['hsl(0, 84%, 60%)', 'hsl(0, 70%, 60%)', 'hsl(38, 92%, 50%)', 'hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(142, 76%, 36%)'][i]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Chapters by department + weekly trend */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Chapters by Department</CardTitle>
+                  <CardDescription>Status breakdown across departments</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.chaptersByDepartment?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={data?.chaptersByDepartment}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="department" className="text-xs" angle={-30} textAnchor="end" height={70} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="approved" stackId="a" name="Approved" fill="hsl(142, 76%, 36%)" />
+                        <Bar dataKey="submitted" stackId="a" name="Submitted" fill="hsl(var(--primary))" />
+                        <Bar dataKey="needs_revision" stackId="a" name="Needs Revision" fill="hsl(38, 92%, 50%)" />
+                        <Bar dataKey="draft" stackId="a" name="Draft" fill="hsl(var(--muted-foreground))" />
+                        <Bar dataKey="rejected" stackId="a" name="Rejected" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[280px] flex items-center justify-center text-muted-foreground">No department data</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Submissions & Approvals (last 8 weeks)</CardTitle>
+                  <CardDescription>Weekly chapter activity trend</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={data?.chapterSubmissionsTrend}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="week" className="text-xs" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="submissions" name="Submissions" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="approvals" name="Approvals" stroke="hsl(142, 76%, 36%)" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Stalled chapters table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-orange-500" />
+                  Stalled Chapters ({data?.stalledChapters?.length || 0})
+                </CardTitle>
+                <CardDescription>Chapters in submitted or needs_revision for 10+ days without updates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(data?.stalledChapters?.length || 0) > 0 ? (
+                  <div className="rounded-md border overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Chapter</TableHead>
+                          <TableHead>Project</TableHead>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Days Stuck</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data?.stalledChapters.map((c) => (
+                          <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/project-management?project=${c.project_id}`)}>
+                            <TableCell className="font-medium max-w-[180px] truncate">{c.title}</TableCell>
+                            <TableCell className="max-w-[180px] truncate">{c.project_title}</TableCell>
+                            <TableCell>{c.student_name}</TableCell>
+                            <TableCell>
+                              <Badge variant={c.status === 'needs_revision' ? 'secondary' : 'outline'} className="capitalize">
+                                {c.status.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={c.days_stuck >= 21 ? 'destructive' : 'secondary'}>
+                                {c.days_stuck} days
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-lg font-medium">No stalled chapters</p>
+                    <p className="text-sm">All chapters are progressing on time.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="duplicates" className="space-y-6">
             {/* Duplicate Insights Charts */}
             <div className="grid md:grid-cols-2 gap-6">
