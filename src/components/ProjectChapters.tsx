@@ -405,3 +405,10 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
     </div>
   );
 };
+
+const MiniStat = ({ label, value, cls }: { label: string; value: number; cls: string }) => (
+  <div className={`rounded-md p-2 ${cls}`}>
+    <div className="text-base font-bold leading-none">{value}</div>
+    <div className="text-[10px] mt-1 opacity-80">{label}</div>
+  </div>
+);
