@@ -217,14 +217,29 @@ export default function CreateProject() {
         if (!isFinished && project) {
           // Seed pending ratings for all matching supervisors
           let reviewerCount = 0;
+          let reviewerNames: string[] = [];
           try {
             const { data: seeded } = await supabase.rpc('seed_project_ratings' as any, { _project_id: project.id });
             reviewerCount = (seeded as number) || 0;
+            // Fetch the names of the seeded reviewers
+            const { data: ratings } = await supabase
+              .from('project_ratings')
+              .select('supervisor_id')
+              .eq('project_id', project.id);
+            const ids = (ratings || []).map((r: any) => r.supervisor_id);
+            if (ids.length > 0) {
+              const { data: profs } = await supabase
+                .from('profiles')
+                .select('full_name, email')
+                .in('user_id', ids);
+              reviewerNames = (profs || []).map((p: any) => p.full_name || p.email);
+            }
           } catch (e: any) {
             console.error('Failed to seed reviewer ratings:', e);
           }
           setAllocationResult({
             allocated: false,
+            matchedSupervisorNames: reviewerNames,
             message: reviewerCount > 0
               ? `Sent to ${reviewerCount} matching supervisor${reviewerCount === 1 ? '' : 's'} for review.`
               : 'No matching reviewers found yet — an admin will review this submission.',
