@@ -17,7 +17,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { 
   Download, FileText, Table as TableIcon, TrendingUp, Users, FolderKanban, 
-  GitBranch, Loader2, ArrowLeft, AlertTriangle, Copy, XCircle, Clock
+  GitBranch, Loader2, ArrowLeft, AlertTriangle, Copy, XCircle, Clock,
+  BookOpen, FileCheck, FileWarning, Upload, CheckCircle2
 } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
@@ -45,6 +46,16 @@ interface FailureProject {
   days_stuck: number;
 }
 
+interface StalledChapter {
+  id: string;
+  title: string;
+  project_title: string;
+  project_id: string;
+  student_name: string;
+  status: string;
+  days_stuck: number;
+}
+
 interface AnalyticsData {
   projectsByStatus: { name: string; value: number; color: string }[];
   allocationsByStatus: { name: string; value: number }[];
@@ -59,6 +70,23 @@ interface AnalyticsData {
   failureByDept: { department: string; rejected: number; needs_revision: number }[];
   atRiskProjects: FailureProject[];
   failureTotals: { rejected: number; needsRevision: number; atRisk: number };
+  // Chapters
+  chapterStatusBreakdown: { name: string; value: number; color: string }[];
+  chaptersByDepartment: { department: string; approved: number; submitted: number; needs_revision: number; draft: number; rejected: number }[];
+  chapterSubmissionsTrend: { week: string; submissions: number; approvals: number }[];
+  stalledChapters: StalledChapter[];
+  projectCompletion: { range: string; count: number }[];
+  chapterTotals: {
+    totalChapters: number;
+    approved: number;
+    submitted: number;
+    needsRevision: number;
+    draft: number;
+    rejected: number;
+    completionRate: number;
+    finalizedProjects: number;
+    avgApprovalDays: number | null;
+  };
   totals: {
     totalProjects: number;
     totalAllocations: number;
@@ -100,6 +128,9 @@ export default function Analytics() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAnalyticsData())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'student_groups' }, () => fetchAnalyticsData())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'supervisors' }, () => fetchAnalyticsData())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'project_chapters' }, () => fetchAnalyticsData())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'chapter_submissions' }, () => fetchAnalyticsData())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'chapter_feedback' }, () => fetchAnalyticsData())
           .subscribe();
 
         return () => {
@@ -120,7 +151,10 @@ export default function Analytics() {
         { data: supervisors },
         { data: students },
         { data: groups },
-        { data: allProfiles }
+        { data: allProfiles },
+        { data: chapters },
+        { data: submissions },
+        { data: feedback },
       ] = await Promise.all([
         supabase.from('projects').select('*'),
         supabase.from('pending_allocations').select('*'),
@@ -128,7 +162,10 @@ export default function Analytics() {
         supabase.from('profiles').select('*').eq('user_type', 'supervisor'),
         supabase.from('profiles').select('*').eq('user_type', 'student'),
         supabase.from('student_groups').select('*'),
-        supabase.from('profiles').select('user_id, full_name, email')
+        supabase.from('profiles').select('user_id, full_name, email'),
+        supabase.from('project_chapters').select('*'),
+        supabase.from('chapter_submissions').select('chapter_id, created_at'),
+        supabase.from('chapter_feedback').select('chapter_id, status, created_at'),
       ]);
 
       const profileMap = new Map<string, string>();
@@ -303,6 +340,141 @@ export default function Analytics() {
         ...vals
       }));
 
+      // === Chapter Analytics ===
+      const projectMap = new Map<string, any>();
+      (projects || []).forEach(p => projectMap.set(p.id, p));
+
+      const chapterStatusCounts: Record<string, number> = {
+        approved: 0, submitted: 0, needs_revision: 0, draft: 0, rejected: 0,
+      };
+      (chapters || []).forEach((c: any) => {
+        if (c.status in chapterStatusCounts) chapterStatusCounts[c.status]++;
+      });
+      const totalChapters = (chapters || []).length;
+      const completionRate = totalChapters > 0
+        ? Math.round((chapterStatusCounts.approved / totalChapters) * 100)
+        : 0;
+
+      const chapterStatusBreakdown = [
+        { name: 'Approved', value: chapterStatusCounts.approved, color: 'hsl(142, 76%, 36%)' },
+        { name: 'Submitted', value: chapterStatusCounts.submitted, color: 'hsl(var(--primary))' },
+        { name: 'Needs Revision', value: chapterStatusCounts.needs_revision, color: 'hsl(38, 92%, 50%)' },
+        { name: 'Draft', value: chapterStatusCounts.draft, color: 'hsl(var(--muted-foreground))' },
+        { name: 'Rejected', value: chapterStatusCounts.rejected, color: 'hsl(0, 84%, 60%)' },
+      ].filter(x => x.value > 0);
+
+      // Chapters by department (via project)
+      const chapDeptMap: Record<string, { approved: number; submitted: number; needs_revision: number; draft: number; rejected: number }> = {};
+      (chapters || []).forEach((c: any) => {
+        const proj = projectMap.get(c.project_id);
+        const dept = proj?.department || 'Unassigned';
+        if (!chapDeptMap[dept]) chapDeptMap[dept] = { approved: 0, submitted: 0, needs_revision: 0, draft: 0, rejected: 0 };
+        if (c.status in chapDeptMap[dept]) (chapDeptMap[dept] as any)[c.status]++;
+      });
+      const chaptersByDepartment = Object.entries(chapDeptMap).map(([department, vals]) => ({
+        department: department.length > 18 ? department.slice(0, 16) + '…' : department,
+        ...vals,
+      }));
+
+      // Weekly submissions & approvals (last 8 weeks)
+      const weeks: { week: string; start: Date; end: Date; submissions: number; approvals: number }[] = [];
+      const today = new Date();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      monday.setHours(0, 0, 0, 0);
+      for (let i = 7; i >= 0; i--) {
+        const start = new Date(monday);
+        start.setDate(monday.getDate() - i * 7);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 7);
+        weeks.push({
+          week: `${start.getMonth() + 1}/${start.getDate()}`,
+          start, end, submissions: 0, approvals: 0,
+        });
+      }
+      (submissions || []).forEach((s: any) => {
+        const t = new Date(s.created_at).getTime();
+        const w = weeks.find(w => t >= w.start.getTime() && t < w.end.getTime());
+        if (w) w.submissions++;
+      });
+      (feedback || []).forEach((f: any) => {
+        if (f.status !== 'approved') return;
+        const t = new Date(f.created_at).getTime();
+        const w = weeks.find(w => t >= w.start.getTime() && t < w.end.getTime());
+        if (w) w.approvals++;
+      });
+      const chapterSubmissionsTrend = weeks.map(w => ({
+        week: w.week, submissions: w.submissions, approvals: w.approvals,
+      }));
+
+      // Stalled chapters (submitted/needs_revision for 10+ days)
+      const stalledChapters: StalledChapter[] = (chapters || [])
+        .filter((c: any) => c.status === 'submitted' || c.status === 'needs_revision')
+        .map((c: any) => {
+          const updated = new Date(c.updated_at);
+          const days = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24));
+          const proj = projectMap.get(c.project_id);
+          return {
+            id: c.id,
+            title: c.title,
+            project_title: proj?.title || 'Unknown project',
+            project_id: c.project_id,
+            student_name: proj ? (profileMap.get(proj.student_id) || 'Unknown') : 'Unknown',
+            status: c.status,
+            days_stuck: days,
+          };
+        })
+        .filter(c => c.days_stuck >= 10)
+        .sort((a, b) => b.days_stuck - a.days_stuck)
+        .slice(0, 25);
+
+      // Project completion distribution (% chapters approved per project)
+      const projectChapterMap: Record<string, { total: number; approved: number }> = {};
+      (chapters || []).forEach((c: any) => {
+        if (!projectChapterMap[c.project_id]) projectChapterMap[c.project_id] = { total: 0, approved: 0 };
+        projectChapterMap[c.project_id].total++;
+        if (c.status === 'approved') projectChapterMap[c.project_id].approved++;
+      });
+      const completionBuckets = [
+        { range: '0%', min: 0, max: 0 },
+        { range: '1-25%', min: 1, max: 25 },
+        { range: '26-50%', min: 26, max: 50 },
+        { range: '51-75%', min: 51, max: 75 },
+        { range: '76-99%', min: 76, max: 99 },
+        { range: '100%', min: 100, max: 100 },
+      ];
+      const projectCompletion = completionBuckets.map(b => ({
+        range: b.range,
+        count: Object.values(projectChapterMap).filter(p => {
+          const pct = p.total > 0 ? Math.round((p.approved / p.total) * 100) : 0;
+          return pct >= b.min && pct <= b.max;
+        }).length,
+      }));
+
+      // Avg approval days: from chapter created_at -> first approved feedback
+      const firstApproved: Record<string, number> = {};
+      (feedback || []).forEach((f: any) => {
+        if (f.status !== 'approved') return;
+        const t = new Date(f.created_at).getTime();
+        if (firstApproved[f.chapter_id] === undefined || t < firstApproved[f.chapter_id]) {
+          firstApproved[f.chapter_id] = t;
+        }
+      });
+      const approvalDays: number[] = [];
+      (chapters || []).forEach((c: any) => {
+        if (c.status !== 'approved') return;
+        const fa = firstApproved[c.id];
+        if (!fa) return;
+        const days = (fa - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24);
+        if (days >= 0) approvalDays.push(days);
+      });
+      const avgApprovalDays = approvalDays.length
+        ? Math.round((approvalDays.reduce((a, b) => a + b, 0) / approvalDays.length) * 10) / 10
+        : null;
+
+      const finalizedProjects = (projects || []).filter(p => p.status === 'finalized').length;
+
+
       setData({
         projectsByStatus,
         allocationsByStatus,
@@ -319,6 +491,22 @@ export default function Analytics() {
           rejected: rejectedProjects.length,
           needsRevision: needsRevisionProjects.length,
           atRisk: atRiskProjects.length,
+        },
+        chapterStatusBreakdown,
+        chaptersByDepartment,
+        chapterSubmissionsTrend,
+        stalledChapters,
+        projectCompletion,
+        chapterTotals: {
+          totalChapters,
+          approved: chapterStatusCounts.approved,
+          submitted: chapterStatusCounts.submitted,
+          needsRevision: chapterStatusCounts.needs_revision,
+          draft: chapterStatusCounts.draft,
+          rejected: chapterStatusCounts.rejected,
+          completionRate,
+          finalizedProjects,
+          avgApprovalDays,
         },
         totals: {
           totalProjects: projects?.length || 0,
@@ -452,8 +640,15 @@ export default function Analytics() {
         </div>
 
         <Tabs defaultValue="charts" className="space-y-6">
-          <TabsList className={`grid w-full max-w-2xl ${isSuperAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsList className={`grid w-full max-w-3xl ${isSuperAdmin ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <TabsTrigger value="charts">Charts & Insights</TabsTrigger>
+            <TabsTrigger value="chapters" className="flex items-center gap-1.5">
+              <BookOpen className="h-3.5 w-3.5" />
+              Chapters
+              {(data?.chapterTotals?.totalChapters || 0) > 0 && (
+                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{data?.chapterTotals.completionRate}%</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="duplicates" className="flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
               Duplicates
@@ -580,6 +775,219 @@ export default function Analytics() {
                     <Area type="monotone" dataKey="allocations" stackId="2" stroke="hsl(var(--secondary))" fill="hsl(var(--secondary))" fillOpacity={0.6} name="Allocations" />
                   </AreaChart>
                 </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+
+          {/* Chapters Tab */}
+          <TabsContent value="chapters" className="space-y-6">
+            {/* Chapter summary cards */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[
+                { label: 'Total Chapters', value: data?.chapterTotals?.totalChapters || 0, icon: BookOpen, bg: 'bg-primary/10', color: 'text-primary' },
+                { label: 'Approved', value: data?.chapterTotals?.approved || 0, icon: FileCheck, bg: 'bg-success/10', color: 'text-success' },
+                { label: 'Submitted', value: data?.chapterTotals?.submitted || 0, icon: Upload, bg: 'bg-primary/10', color: 'text-primary' },
+                { label: 'Needs Revision', value: data?.chapterTotals?.needsRevision || 0, icon: FileWarning, bg: 'bg-warning/10', color: 'text-warning' },
+                { label: 'Finalized Projects', value: data?.chapterTotals?.finalizedProjects || 0, icon: CheckCircle2, bg: 'bg-success/10', color: 'text-success' },
+                { label: 'Avg Approval (days)', value: data?.chapterTotals?.avgApprovalDays ?? '—', icon: Clock, bg: 'bg-secondary/10', color: 'text-secondary' },
+              ].map((s, i) => (
+                <Card key={i}>
+                  <CardContent className="p-3 flex items-center gap-2.5">
+                    <div className={`p-2 rounded-lg ${s.bg}`}>
+                      <s.icon className={`h-4 w-4 ${s.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-xl font-bold leading-none">{s.value}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{s.label}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Overall completion banner */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                  Overall Chapter Completion Rate
+                </CardTitle>
+                <CardDescription>Percentage of all chapters across all projects that have been approved</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-3 mb-2">
+                  <span className="text-4xl font-bold text-primary">{data?.chapterTotals?.completionRate || 0}%</span>
+                  <span className="text-sm text-muted-foreground mb-1">
+                    {data?.chapterTotals?.approved || 0} of {data?.chapterTotals?.totalChapters || 0} chapters approved
+                  </span>
+                </div>
+                <div className="w-full h-3 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary via-secondary to-success transition-all"
+                    style={{ width: `${data?.chapterTotals?.completionRate || 0}%` }}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Chapter status breakdown pie */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Chapter Status Breakdown</CardTitle>
+                  <CardDescription>Distribution of chapter statuses across the platform</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.chapterStatusBreakdown?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={260}>
+                      <PieChart>
+                        <Pie
+                          data={data?.chapterStatusBreakdown}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={85}
+                          dataKey="value"
+                        >
+                          {data?.chapterStatusBreakdown.map((entry, index) => (
+                            <Cell key={`ch-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[260px] flex items-center justify-center text-muted-foreground">No chapter data yet</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Project completion distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Project Completion Distribution</CardTitle>
+                  <CardDescription>How many projects fall in each completion bucket</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={data?.projectCompletion}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="range" className="text-xs" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="count" name="Projects" radius={[4, 4, 0, 0]}>
+                        {data?.projectCompletion.map((_, i) => (
+                          <Cell key={i} fill={['hsl(0, 84%, 60%)', 'hsl(0, 70%, 60%)', 'hsl(38, 92%, 50%)', 'hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(142, 76%, 36%)'][i]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Chapters by department + weekly trend */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Chapters by Department</CardTitle>
+                  <CardDescription>Status breakdown across departments</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {(data?.chaptersByDepartment?.length || 0) > 0 ? (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={data?.chaptersByDepartment}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="department" className="text-xs" angle={-30} textAnchor="end" height={70} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="approved" stackId="a" name="Approved" fill="hsl(142, 76%, 36%)" />
+                        <Bar dataKey="submitted" stackId="a" name="Submitted" fill="hsl(var(--primary))" />
+                        <Bar dataKey="needs_revision" stackId="a" name="Needs Revision" fill="hsl(38, 92%, 50%)" />
+                        <Bar dataKey="draft" stackId="a" name="Draft" fill="hsl(var(--muted-foreground))" />
+                        <Bar dataKey="rejected" stackId="a" name="Rejected" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-[280px] flex items-center justify-center text-muted-foreground">No department data</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Submissions & Approvals (last 8 weeks)</CardTitle>
+                  <CardDescription>Weekly chapter activity trend</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={data?.chapterSubmissionsTrend}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="week" className="text-xs" />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="submissions" name="Submissions" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                      <Line type="monotone" dataKey="approvals" name="Approvals" stroke="hsl(142, 76%, 36%)" strokeWidth={2} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Stalled chapters table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-orange-500" />
+                  Stalled Chapters ({data?.stalledChapters?.length || 0})
+                </CardTitle>
+                <CardDescription>Chapters in submitted or needs_revision for 10+ days without updates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(data?.stalledChapters?.length || 0) > 0 ? (
+                  <div className="rounded-md border overflow-auto max-h-[400px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Chapter</TableHead>
+                          <TableHead>Project</TableHead>
+                          <TableHead>Student</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Days Stuck</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data?.stalledChapters.map((c) => (
+                          <TableRow key={c.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/project-management?project=${c.project_id}`)}>
+                            <TableCell className="font-medium max-w-[180px] truncate">{c.title}</TableCell>
+                            <TableCell className="max-w-[180px] truncate">{c.project_title}</TableCell>
+                            <TableCell>{c.student_name}</TableCell>
+                            <TableCell>
+                              <Badge variant={c.status === 'needs_revision' ? 'secondary' : 'outline'} className="capitalize">
+                                {c.status.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={c.days_stuck >= 21 ? 'destructive' : 'secondary'}>
+                                {c.days_stuck} days
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-muted-foreground">
+                    <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p className="text-lg font-medium">No stalled chapters</p>
+                    <p className="text-sm">All chapters are progressing on time.</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
