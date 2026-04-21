@@ -18,6 +18,9 @@ export function ChapterProgressCard({
   compact = false,
 }: Props) {
   const { stats, loading } = useChapterStats();
+  const REQUIRED_CHAPTERS = 6;
+  const approvedOutOfRequired = Math.min(stats.approved, REQUIRED_CHAPTERS);
+  const progressPct = Math.round((approvedOutOfRequired / REQUIRED_CHAPTERS) * 100);
 
   return (
     <Card className="border-primary/10 shadow-card overflow-hidden">
@@ -32,7 +35,7 @@ export function ChapterProgressCard({
             <CardDescription className="text-xs">{description}</CardDescription>
           </div>
           <Badge variant="outline" className="text-[10px]">
-            {loading ? "—" : `${stats.total} chapters`}
+            {loading ? "—" : `${approvedOutOfRequired} of ${REQUIRED_CHAPTERS} approved`}
           </Badge>
         </div>
       </CardHeader>
@@ -40,10 +43,10 @@ export function ChapterProgressCard({
         <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-muted-foreground">Approved progress</span>
-            <span className="font-semibold text-success">{loading ? "—" : `${stats.progress}%`}</span>
+            <span className="font-semibold text-success">{loading ? "—" : `${progressPct}%`}</span>
           </div>
           <Progress
-            value={stats.progress}
+            value={progressPct}
             className="h-2.5 [&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary"
           />
         </div>
