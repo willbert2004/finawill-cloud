@@ -209,22 +209,29 @@ export default function CreateProject() {
           title: formData.title, description: formData.description, objectives: formData.objectives,
           student_id: user.id, department: formData.department,
           keywords: buildProjectKeywords(formData.category),
-          status: isFinished ? 'completed' : 'pending',
+          status: isFinished ? 'completed' : 'pending_review',
           similarity_score: duplicateResult?.highestSimilarity || 0,
           is_duplicate: false,
         }).select().single();
         if (error) throw error;
         if (!isFinished && project) {
+          // Seed pending ratings for all matching supervisors
+          let reviewerCount = 0;
           try {
-            const allocData = await callSmartAllocation<AllocationResult>({ action: 'auto_allocate_project', projectId: project.id });
-            setAllocationResult(allocData);
+            const { data: seeded } = await supabase.rpc('seed_project_ratings' as any, { _project_id: project.id });
+            reviewerCount = (seeded as number) || 0;
           } catch (e: any) {
-            console.error('Auto-allocation failed:', e);
-            setAllocationResult({ allocated: false, message: e.message });
+            console.error('Failed to seed reviewer ratings:', e);
           }
+          setAllocationResult({
+            allocated: false,
+            message: reviewerCount > 0
+              ? `Sent to ${reviewerCount} matching supervisor${reviewerCount === 1 ? '' : 's'} for review.`
+              : 'No matching reviewers found yet — an admin will review this submission.',
+          } as AllocationResult);
         }
         setSubmitted(true);
-        toast({ title: isFinished ? "Project Added!" : "Project Submitted!" });
+        toast({ title: isFinished ? "Project Added!" : "Project Submitted for Review!" });
       }
     } catch (error: any) { toast({ title: "Failed", description: error.message, variant: "destructive" }); }
     finally { setLoading(false); setSubmitting(false); }
