@@ -472,6 +472,7 @@ export default function Analytics() {
       const finalizedProjects = (projects || []).filter(p => p.status === 'finalized').length;
 
 
+      setData({
         projectsByStatus,
         allocationsByStatus,
         supervisorWorkload,
@@ -487,6 +488,22 @@ export default function Analytics() {
           rejected: rejectedProjects.length,
           needsRevision: needsRevisionProjects.length,
           atRisk: atRiskProjects.length,
+        },
+        chapterStatusBreakdown,
+        chaptersByDepartment,
+        chapterSubmissionsTrend,
+        stalledChapters,
+        projectCompletion,
+        chapterTotals: {
+          totalChapters,
+          approved: chapterStatusCounts.approved,
+          submitted: chapterStatusCounts.submitted,
+          needsRevision: chapterStatusCounts.needs_revision,
+          draft: chapterStatusCounts.draft,
+          rejected: chapterStatusCounts.rejected,
+          completionRate,
+          finalizedProjects,
+          avgApprovalDays,
         },
         totals: {
           totalProjects: projects?.length || 0,
