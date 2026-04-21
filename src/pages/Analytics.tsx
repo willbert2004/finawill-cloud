@@ -337,7 +337,141 @@ export default function Analytics() {
         ...vals
       }));
 
-      setData({
+      // === Chapter Analytics ===
+      const projectMap = new Map<string, any>();
+      (projects || []).forEach(p => projectMap.set(p.id, p));
+
+      const chapterStatusCounts: Record<string, number> = {
+        approved: 0, submitted: 0, needs_revision: 0, draft: 0, rejected: 0,
+      };
+      (chapters || []).forEach((c: any) => {
+        if (c.status in chapterStatusCounts) chapterStatusCounts[c.status]++;
+      });
+      const totalChapters = (chapters || []).length;
+      const completionRate = totalChapters > 0
+        ? Math.round((chapterStatusCounts.approved / totalChapters) * 100)
+        : 0;
+
+      const chapterStatusBreakdown = [
+        { name: 'Approved', value: chapterStatusCounts.approved, color: 'hsl(142, 76%, 36%)' },
+        { name: 'Submitted', value: chapterStatusCounts.submitted, color: 'hsl(var(--primary))' },
+        { name: 'Needs Revision', value: chapterStatusCounts.needs_revision, color: 'hsl(38, 92%, 50%)' },
+        { name: 'Draft', value: chapterStatusCounts.draft, color: 'hsl(var(--muted-foreground))' },
+        { name: 'Rejected', value: chapterStatusCounts.rejected, color: 'hsl(0, 84%, 60%)' },
+      ].filter(x => x.value > 0);
+
+      // Chapters by department (via project)
+      const chapDeptMap: Record<string, { approved: number; submitted: number; needs_revision: number; draft: number; rejected: number }> = {};
+      (chapters || []).forEach((c: any) => {
+        const proj = projectMap.get(c.project_id);
+        const dept = proj?.department || 'Unassigned';
+        if (!chapDeptMap[dept]) chapDeptMap[dept] = { approved: 0, submitted: 0, needs_revision: 0, draft: 0, rejected: 0 };
+        if (c.status in chapDeptMap[dept]) (chapDeptMap[dept] as any)[c.status]++;
+      });
+      const chaptersByDepartment = Object.entries(chapDeptMap).map(([department, vals]) => ({
+        department: department.length > 18 ? department.slice(0, 16) + '…' : department,
+        ...vals,
+      }));
+
+      // Weekly submissions & approvals (last 8 weeks)
+      const weeks: { week: string; start: Date; end: Date; submissions: number; approvals: number }[] = [];
+      const today = new Date();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      monday.setHours(0, 0, 0, 0);
+      for (let i = 7; i >= 0; i--) {
+        const start = new Date(monday);
+        start.setDate(monday.getDate() - i * 7);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 7);
+        weeks.push({
+          week: `${start.getMonth() + 1}/${start.getDate()}`,
+          start, end, submissions: 0, approvals: 0,
+        });
+      }
+      (submissions || []).forEach((s: any) => {
+        const t = new Date(s.created_at).getTime();
+        const w = weeks.find(w => t >= w.start.getTime() && t < w.end.getTime());
+        if (w) w.submissions++;
+      });
+      (feedback || []).forEach((f: any) => {
+        if (f.status !== 'approved') return;
+        const t = new Date(f.created_at).getTime();
+        const w = weeks.find(w => t >= w.start.getTime() && t < w.end.getTime());
+        if (w) w.approvals++;
+      });
+      const chapterSubmissionsTrend = weeks.map(w => ({
+        week: w.week, submissions: w.submissions, approvals: w.approvals,
+      }));
+
+      // Stalled chapters (submitted/needs_revision for 10+ days)
+      const stalledChapters: StalledChapter[] = (chapters || [])
+        .filter((c: any) => c.status === 'submitted' || c.status === 'needs_revision')
+        .map((c: any) => {
+          const updated = new Date(c.updated_at);
+          const days = Math.floor((now.getTime() - updated.getTime()) / (1000 * 60 * 60 * 24));
+          const proj = projectMap.get(c.project_id);
+          return {
+            id: c.id,
+            title: c.title,
+            project_title: proj?.title || 'Unknown project',
+            project_id: c.project_id,
+            student_name: proj ? (profileMap.get(proj.student_id) || 'Unknown') : 'Unknown',
+            status: c.status,
+            days_stuck: days,
+          };
+        })
+        .filter(c => c.days_stuck >= 10)
+        .sort((a, b) => b.days_stuck - a.days_stuck)
+        .slice(0, 25);
+
+      // Project completion distribution (% chapters approved per project)
+      const projectChapterMap: Record<string, { total: number; approved: number }> = {};
+      (chapters || []).forEach((c: any) => {
+        if (!projectChapterMap[c.project_id]) projectChapterMap[c.project_id] = { total: 0, approved: 0 };
+        projectChapterMap[c.project_id].total++;
+        if (c.status === 'approved') projectChapterMap[c.project_id].approved++;
+      });
+      const completionBuckets = [
+        { range: '0%', min: 0, max: 0 },
+        { range: '1-25%', min: 1, max: 25 },
+        { range: '26-50%', min: 26, max: 50 },
+        { range: '51-75%', min: 51, max: 75 },
+        { range: '76-99%', min: 76, max: 99 },
+        { range: '100%', min: 100, max: 100 },
+      ];
+      const projectCompletion = completionBuckets.map(b => ({
+        range: b.range,
+        count: Object.values(projectChapterMap).filter(p => {
+          const pct = p.total > 0 ? Math.round((p.approved / p.total) * 100) : 0;
+          return pct >= b.min && pct <= b.max;
+        }).length,
+      }));
+
+      // Avg approval days: from chapter created_at -> first approved feedback
+      const firstApproved: Record<string, number> = {};
+      (feedback || []).forEach((f: any) => {
+        if (f.status !== 'approved') return;
+        const t = new Date(f.created_at).getTime();
+        if (firstApproved[f.chapter_id] === undefined || t < firstApproved[f.chapter_id]) {
+          firstApproved[f.chapter_id] = t;
+        }
+      });
+      const approvalDays: number[] = [];
+      (chapters || []).forEach((c: any) => {
+        if (c.status !== 'approved') return;
+        const fa = firstApproved[c.id];
+        if (!fa) return;
+        const days = (fa - new Date(c.created_at).getTime()) / (1000 * 60 * 60 * 24);
+        if (days >= 0) approvalDays.push(days);
+      });
+      const avgApprovalDays = approvalDays.length
+        ? Math.round((approvalDays.reduce((a, b) => a + b, 0) / approvalDays.length) * 10) / 10
+        : null;
+
+      const finalizedProjects = (projects || []).filter(p => p.status === 'finalized').length;
+
+
         projectsByStatus,
         allocationsByStatus,
         supervisorWorkload,
