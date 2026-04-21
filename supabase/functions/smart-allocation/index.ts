@@ -482,10 +482,9 @@ serve(async (req) => {
       for (const project of pendingProjects) {
         try {
           const category = getCategory(project);
-          if (!category) { skipped++; continue; }
 
           // Score all supervisors for this project
-          type Match = { userId: string; name: string; score: number; reason: string };
+          type Match = { userId: string; name: string; score: number; reason: string; workload: number };
           const matches: Match[] = [];
 
           for (const sup of sups ?? []) {
@@ -499,9 +498,11 @@ serve(async (req) => {
 
             let bestScore = 0;
             let bestArea = "";
-            for (const area of uniqueAreas) {
-              const s = categoryMatchScore(category, area);
-              if (s > bestScore) { bestScore = s; bestArea = area; }
+            if (category) {
+              for (const area of uniqueAreas) {
+                const s = categoryMatchScore(category, area);
+                if (s > bestScore) { bestScore = s; bestArea = area; }
+              }
             }
 
             if (bestScore > 0) {
@@ -510,17 +511,40 @@ serve(async (req) => {
                 name: prof.full_name || prof.email || "Supervisor",
                 score: bestScore,
                 reason: `Expertise "${bestArea}" matches category "${category}" (score: ${bestScore})`,
+                workload: cap.current,
               });
             }
           }
 
-          matches.sort((a, b) => b.score - a.score);
+          // Prefer expertise match (highest score, then lowest workload).
+          // Fallback: any supervisor with capacity, lowest workload first.
+          let best: Match | undefined;
+          if (matches.length > 0) {
+            matches.sort((a, b) => b.score - a.score || a.workload - b.workload);
+            best = matches[0];
+          } else {
+            const fallback: Match[] = [];
+            for (const sup of sups ?? []) {
+              const prof = pm.get(sup.user_id);
+              if (!prof) continue;
+              const cap = capacityMap.get(sup.user_id)!;
+              if (cap.current >= cap.max) continue;
+              fallback.push({
+                userId: sup.user_id,
+                name: prof.full_name || prof.email || "Supervisor",
+                score: 0,
+                reason: category
+                  ? `No expertise match for "${category}" — assigned by lowest workload (${cap.current}/${cap.max}).`
+                  : `No project category set — assigned by lowest workload (${cap.current}/${cap.max}).`,
+                workload: cap.current,
+              });
+            }
+            if (fallback.length === 0) { skipped++; continue; }
+            fallback.sort((a, b) => a.workload - b.workload);
+            best = fallback[0];
+          }
 
-          if (matches.length === 0) { skipped++; continue; }
-
-          const best = matches[0];
-
-          // Force-assign project to best supervisor
+          // Force-assign project to chosen supervisor
           await admin.from("projects").update({
             supervisor_id: best.userId,
             status: "approved",
@@ -542,7 +566,9 @@ serve(async (req) => {
           allNotifications.push({
             user_id: best.userId,
             title: "Project Assigned to You",
-            message: `Admin has assigned project "${project.title}" (${category}) to you based on your expertise.`,
+            message: best.score > 0
+              ? `Admin has assigned project "${project.title}" (${category}) to you based on your expertise.`
+              : `Admin has assigned project "${project.title}" to you (lowest workload).`,
             type: "allocation",
             link: `/projects/${project.id}`,
           });
