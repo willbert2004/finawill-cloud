@@ -640,8 +640,15 @@ export default function Analytics() {
         </div>
 
         <Tabs defaultValue="charts" className="space-y-6">
-          <TabsList className={`grid w-full max-w-2xl ${isSuperAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          <TabsList className={`grid w-full max-w-3xl ${isSuperAdmin ? 'grid-cols-5' : 'grid-cols-4'}`}>
             <TabsTrigger value="charts">Charts & Insights</TabsTrigger>
+            <TabsTrigger value="chapters" className="flex items-center gap-1.5">
+              <BookOpen className="h-3.5 w-3.5" />
+              Chapters
+              {(data?.chapterTotals?.totalChapters || 0) > 0 && (
+                <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{data?.chapterTotals.completionRate}%</Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="duplicates" className="flex items-center gap-1.5">
               <AlertTriangle className="h-3.5 w-3.5" />
               Duplicates
