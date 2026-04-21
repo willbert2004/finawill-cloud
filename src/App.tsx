@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import VideoCall from "./pages/VideoCall";
 import SystemDocumentation from "./pages/SystemDocumentation";
 import Duplicates from "./pages/Duplicates";
+import PendingReviews from "./pages/PendingReviews";
 
 const queryClient = new QueryClient();
 
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/project-management" element={<ProtectedRoute allowedRoles={['student', 'supervisor', 'admin', 'super_admin']}><ProjectManagement /></ProtectedRoute>} />
             {/* duplicate-detection route removed — duplicate check is now inline in CreateProject */}
             <Route path="/allocation" element={<ProtectedRoute allowedRoles={['supervisor', 'admin', 'super_admin']}><Allocation /></ProtectedRoute>} />
+            <Route path="/pending-reviews" element={<ProtectedRoute allowedRoles={['supervisor']}><PendingReviews /></ProtectedRoute>} />
 
             {/* Admin routes */}
             <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin', 'super_admin']}><AdminDashboard /></ProtectedRoute>} />
