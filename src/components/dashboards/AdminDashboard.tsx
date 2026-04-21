@@ -99,6 +99,12 @@ export function AdminDashboard({ user, projectStats, recentProjects, groupCount,
         ))}
       </div>
 
+      {/* System-wide chapter progress */}
+      <ChapterProgressCard
+        title="System Chapter Activity"
+        description="All projects across departments"
+      />
+
       {/* Recent Projects - Full Width Bottom */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">

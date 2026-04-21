@@ -102,6 +102,13 @@ export function StudentDashboard({ user, projectStats, recentProjects, groupCoun
             </CardContent>
           </Card>
 
+          {/* Chapter progress across this student's projects */}
+          <ChapterProgressCard
+            title="My Chapter Progress"
+            description="Submissions, revisions and approvals"
+            compact
+          />
+
           {/* Supervisor Info */}
           <StudentSupervisorDetails />
         </div>

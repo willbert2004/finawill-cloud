@@ -163,6 +163,10 @@ export function SupervisorDashboard({ user, projectStats, recentProjects, groupC
 
         {/* RIGHT */}
         <div className="lg:col-span-2 space-y-4">
+          <ChapterProgressCard
+            title="Student Chapter Pipeline"
+            description="Across projects you supervise"
+          />
           <SupervisorAllocatedGroups />
           <MeetingScheduler />
         </div>
