@@ -132,7 +132,9 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
     },
     { total: 0, draft: 0, submitted: 0, needs_revision: 0, approved: 0, rejected: 0 } as any,
   );
-  const progressPct = counts.total > 0 ? Math.round((counts.approved / counts.total) * 100) : 0;
+  const REQUIRED_CHAPTERS = 6;
+  const approvedOutOfRequired = Math.min(counts.approved, REQUIRED_CHAPTERS);
+  const progressPct = Math.round((approvedOutOfRequired / REQUIRED_CHAPTERS) * 100);
 
   return (
     <div className="space-y-4">
@@ -143,7 +145,7 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="text-sm font-semibold">Project chapter progress</h4>
-                <p className="text-xs text-muted-foreground">{counts.approved} of {counts.total} chapters approved</p>
+                <p className="text-xs text-muted-foreground">{approvedOutOfRequired} of {REQUIRED_CHAPTERS} chapters approved</p>
               </div>
               <span className="text-lg font-bold text-success">{progressPct}%</span>
             </div>
