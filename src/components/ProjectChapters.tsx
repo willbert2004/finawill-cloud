@@ -265,6 +265,7 @@ interface DetailProps {
 const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, onChange, onDownload }: DetailProps) => {
   const [uploading, setUploading] = useState(false);
   const [notes, setNotes] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [fbStatus, setFbStatus] = useState<'approved' | 'needs_revision' | 'rejected'>('needs_revision');
   const [fbComments, setFbComments] = useState('');
@@ -272,9 +273,16 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
   const [savingFb, setSavingFb] = useState(false);
   const latest = chapter.submissions[0];
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    e.target.value = '';
+    if (!file) return;
+    setPendingFile(file);
+  };
+
+  const confirmUpload = async () => {
+    if (!pendingFile || !userId) return;
+    const file = pendingFile;
     setUploading(true);
     try {
       const path = `${projectId}/${chapter.id}/${Date.now()}-${file.name}`;
@@ -292,14 +300,15 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
       if (insErr) throw insErr;
       toast.success('Chapter submitted');
       setNotes('');
+      setPendingFile(null);
       onChange();
     } catch (err: any) {
       toast.error(err.message || 'Upload failed');
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
   };
+
 
   const submitFeedback = async () => {
     if (!latest || !userId || !fbComments.trim()) {
