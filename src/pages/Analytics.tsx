@@ -148,7 +148,10 @@ export default function Analytics() {
         { data: supervisors },
         { data: students },
         { data: groups },
-        { data: allProfiles }
+        { data: allProfiles },
+        { data: chapters },
+        { data: submissions },
+        { data: feedback },
       ] = await Promise.all([
         supabase.from('projects').select('*'),
         supabase.from('pending_allocations').select('*'),
@@ -156,7 +159,10 @@ export default function Analytics() {
         supabase.from('profiles').select('*').eq('user_type', 'supervisor'),
         supabase.from('profiles').select('*').eq('user_type', 'student'),
         supabase.from('student_groups').select('*'),
-        supabase.from('profiles').select('user_id, full_name, email')
+        supabase.from('profiles').select('user_id, full_name, email'),
+        supabase.from('project_chapters').select('*'),
+        supabase.from('chapter_submissions').select('chapter_id, created_at'),
+        supabase.from('chapter_feedback').select('chapter_id, status, created_at'),
       ]);
 
       const profileMap = new Map<string, string>();
