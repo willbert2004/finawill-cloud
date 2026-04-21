@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { toast } from 'sonner';
-import { BookOpen, Upload, Download, Plus, MessageSquare, FileCheck, FileWarning, FileX } from 'lucide-react';
+import { BookOpen, Upload, Download, Plus, MessageSquare, FileCheck, FileWarning, FileX, PackageCheck, FileArchive } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 interface Props {
