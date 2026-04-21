@@ -10,7 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -260,6 +265,7 @@ interface DetailProps {
 const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, onChange, onDownload }: DetailProps) => {
   const [uploading, setUploading] = useState(false);
   const [notes, setNotes] = useState('');
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [fbStatus, setFbStatus] = useState<'approved' | 'needs_revision' | 'rejected'>('needs_revision');
   const [fbComments, setFbComments] = useState('');
@@ -267,9 +273,16 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
   const [savingFb, setSavingFb] = useState(false);
   const latest = chapter.submissions[0];
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    e.target.value = '';
+    if (!file) return;
+    setPendingFile(file);
+  };
+
+  const confirmUpload = async () => {
+    if (!pendingFile || !userId) return;
+    const file = pendingFile;
     setUploading(true);
     try {
       const path = `${projectId}/${chapter.id}/${Date.now()}-${file.name}`;
@@ -287,14 +300,15 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
       if (insErr) throw insErr;
       toast.success('Chapter submitted');
       setNotes('');
+      setPendingFile(null);
       onChange();
     } catch (err: any) {
       toast.error(err.message || 'Upload failed');
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
   };
+
 
   const submitFeedback = async () => {
     if (!latest || !userId || !fbComments.trim()) {
@@ -366,9 +380,42 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
             maxLength={500}
             rows={2}
           />
-          <Input type="file" onChange={handleUpload} disabled={uploading} accept=".pdf,.doc,.docx,.odt,.txt" />
+          <Input type="file" onChange={handleFileSelected} disabled={uploading} accept=".pdf,.doc,.docx,.odt,.txt" />
         </div>
       )}
+
+      {/* Confirm submission dialog */}
+      <AlertDialog open={!!pendingFile} onOpenChange={(o) => { if (!o && !uploading) setPendingFile(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit this file?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>You're about to submit the following file for <span className="font-medium text-foreground">{chapter.title}</span>:</p>
+                <div className="p-3 rounded-md border bg-muted/40 text-sm">
+                  <div className="font-medium text-foreground break-all">{pendingFile?.name}</div>
+                  {pendingFile && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {(pendingFile.size / 1024).toFixed(1)} KB
+                    </div>
+                  )}
+                  {notes.trim() && (
+                    <div className="text-xs mt-2"><span className="text-muted-foreground">Notes: </span>{notes.trim()}</div>
+                  )}
+                </div>
+                <p className="text-xs">Your supervisor will be notified once submitted.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={uploading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmUpload} disabled={uploading}>
+              {uploading ? 'Submitting...' : 'Confirm & submit'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {/* Feedback list */}
       <div>
