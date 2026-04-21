@@ -128,6 +128,9 @@ export default function Analytics() {
           .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAnalyticsData())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'student_groups' }, () => fetchAnalyticsData())
           .on('postgres_changes', { event: '*', schema: 'public', table: 'supervisors' }, () => fetchAnalyticsData())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'project_chapters' }, () => fetchAnalyticsData())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'chapter_submissions' }, () => fetchAnalyticsData())
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'chapter_feedback' }, () => fetchAnalyticsData())
           .subscribe();
 
         return () => {
