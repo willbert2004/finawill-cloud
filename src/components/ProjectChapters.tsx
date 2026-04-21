@@ -380,9 +380,42 @@ const ChapterDetail = ({ chapter, isStudent, isSupervisor, projectId, userId, on
             maxLength={500}
             rows={2}
           />
-          <Input type="file" onChange={handleUpload} disabled={uploading} accept=".pdf,.doc,.docx,.odt,.txt" />
+          <Input type="file" onChange={handleFileSelected} disabled={uploading} accept=".pdf,.doc,.docx,.odt,.txt" />
         </div>
       )}
+
+      {/* Confirm submission dialog */}
+      <AlertDialog open={!!pendingFile} onOpenChange={(o) => { if (!o && !uploading) setPendingFile(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Submit this file?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>You're about to submit the following file for <span className="font-medium text-foreground">{chapter.title}</span>:</p>
+                <div className="p-3 rounded-md border bg-muted/40 text-sm">
+                  <div className="font-medium text-foreground break-all">{pendingFile?.name}</div>
+                  {pendingFile && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {(pendingFile.size / 1024).toFixed(1)} KB
+                    </div>
+                  )}
+                  {notes.trim() && (
+                    <div className="text-xs mt-2"><span className="text-muted-foreground">Notes: </span>{notes.trim()}</div>
+                  )}
+                </div>
+                <p className="text-xs">Your supervisor will be notified once submitted.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={uploading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmUpload} disabled={uploading}>
+              {uploading ? 'Submitting...' : 'Confirm & submit'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
 
       {/* Feedback list */}
       <div>
