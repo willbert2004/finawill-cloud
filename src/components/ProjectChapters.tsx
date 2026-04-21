@@ -159,6 +159,18 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
         </Card>
       )}
 
+      {/* Final submission panel — shown when project is finalized (all chapters approved, ≥6) */}
+      {project?.status === 'finalized' && (
+        <FinalSubmissionPanel
+          projectId={projectId}
+          isStudent={isStudent}
+          finalZip={finalZip}
+          userId={user?.id}
+          onUploaded={() => refetchFinalZip()}
+          onDownload={downloadFile}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">Dissertation Chapters</h3>
