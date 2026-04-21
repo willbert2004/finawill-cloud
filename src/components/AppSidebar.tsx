@@ -20,6 +20,7 @@ import {
   Trash2,
   Database,
   BookOpen,
+  ClipboardCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -65,6 +66,7 @@ export function AppSidebar() {
         { name: "My Profile", href: "/supervisor-profile", icon: User, color: "text-primary" },
         { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-primary" },
         { name: "Assigned Projects", href: "/projects", icon: FolderKanban, color: "text-primary" },
+        { name: "Pending Reviews", href: "/pending-reviews", icon: ClipboardCheck, color: "text-[hsl(var(--accent-gold))]" },
         { name: "Project Orchestration", href: "/project-management", icon: ClipboardList, color: "text-secondary" },
         { name: "Smart Allocation", href: "/allocation", icon: Sparkles, color: "text-[hsl(var(--accent-gold))]" },
         { name: "Repository", href: "/repository", icon: Archive, color: "text-success" },
