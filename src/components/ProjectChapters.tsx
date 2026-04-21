@@ -141,6 +141,15 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
   const approvedOutOfRequired = Math.min(counts.approved, REQUIRED_CHAPTERS);
   const progressPct = Math.round((approvedOutOfRequired / REQUIRED_CHAPTERS) * 100);
 
+  const getProgressClasses = (pct: number) => {
+    if (pct >= 100) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-success", text: "text-success" };
+    if (pct >= 75) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary", text: "text-success" };
+    if (pct >= 50) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-primary [&>div]:to-secondary", text: "text-primary" };
+    if (pct >= 25) return { bar: "[&>div]:bg-gradient-to-r [&>div]:from-warning [&>div]:to-primary", text: "text-warning" };
+    return { bar: "[&>div]:bg-destructive", text: "text-destructive" };
+  };
+  const progressClasses = getProgressClasses(progressPct);
+
   return (
     <div className="space-y-4">
       {/* Progress overview — shows current state of this project's chapters to student, supervisor and admin */}
@@ -152,9 +161,9 @@ export const ProjectChapters = ({ projectId, isStudent, isSupervisor }: Props) =
                 <h4 className="text-sm font-semibold">Project chapter progress</h4>
                 <p className="text-xs text-muted-foreground">{approvedOutOfRequired} of {REQUIRED_CHAPTERS} chapters approved</p>
               </div>
-              <span className="text-lg font-bold text-success">{progressPct}%</span>
+              <span className={`text-lg font-bold ${progressClasses.text}`}>{progressPct}%</span>
             </div>
-            <Progress value={progressPct} className="h-2 [&>div]:bg-gradient-to-r [&>div]:from-success [&>div]:to-secondary" />
+            <Progress value={progressPct} className={`h-2 ${progressClasses.bar}`} />
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center">
               <MiniStat label="Draft" value={counts.draft} cls="bg-muted text-muted-foreground" />
               <MiniStat label="Submitted" value={counts.submitted} cls="bg-primary/10 text-primary" />
