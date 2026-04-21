@@ -74,6 +74,104 @@ export type Database = {
         }
         Relationships: []
       }
+      chapter_feedback: {
+        Row: {
+          chapter_id: string
+          comments: string
+          created_at: string
+          id: string
+          marked_file_name: string | null
+          marked_file_path: string | null
+          status: string
+          submission_id: string
+          supervisor_id: string
+        }
+        Insert: {
+          chapter_id: string
+          comments: string
+          created_at?: string
+          id?: string
+          marked_file_name?: string | null
+          marked_file_path?: string | null
+          status?: string
+          submission_id: string
+          supervisor_id: string
+        }
+        Update: {
+          chapter_id?: string
+          comments?: string
+          created_at?: string
+          id?: string
+          marked_file_name?: string | null
+          marked_file_path?: string | null
+          status?: string
+          submission_id?: string
+          supervisor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_feedback_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "project_chapters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chapter_feedback_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "chapter_submissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chapter_submissions: {
+        Row: {
+          chapter_id: string
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          notes: string | null
+          submitted_by: string
+          version: number
+        }
+        Insert: {
+          chapter_id: string
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          notes?: string | null
+          submitted_by: string
+          version?: number
+        }
+        Update: {
+          chapter_id?: string
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          notes?: string | null
+          submitted_by?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_submissions_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "project_chapters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           created_at: string
@@ -501,6 +599,50 @@ export type Database = {
           user_type?: string
         }
         Relationships: []
+      }
+      project_chapters: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          order_index: number
+          project_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          order_index?: number
+          project_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          order_index?: number
+          project_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_chapters_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       project_documents: {
         Row: {
