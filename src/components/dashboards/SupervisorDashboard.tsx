@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { MeetingScheduler } from "@/components/MeetingScheduler";
 import { SupervisorAllocatedGroups } from "@/components/SupervisorAllocatedGroups";
+import { ChapterProgressCard } from "@/components/ChapterProgressCard";
 
 interface SupervisorDashboardProps {
   user: any;

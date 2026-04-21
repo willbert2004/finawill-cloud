@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { StudentSupervisorDetails } from "@/components/StudentSupervisorDetails";
 import { UpcomingMeetings } from "@/components/UpcomingMeetings";
+import { ChapterProgressCard } from "@/components/ChapterProgressCard";
 
 interface StudentDashboardProps {
   user: any;
