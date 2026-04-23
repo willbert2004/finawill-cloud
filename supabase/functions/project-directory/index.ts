@@ -38,7 +38,22 @@ serve(async (req) => {
       });
     }
 
-    const { userIds } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { userIds, listStudents } = body || {};
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    if (listStudents) {
+      const { data, error } = await adminClient
+        .from("profiles")
+        .select("user_id, full_name, email, department, school")
+        .eq("user_type", "student")
+        .order("full_name", { ascending: true });
+      if (error) throw error;
+      return new Response(JSON.stringify({ students: data || [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const uniqueUserIds = [...new Set((Array.isArray(userIds) ? userIds : []).filter(Boolean))].slice(0, 100);
 
     if (uniqueUserIds.length === 0) {
@@ -47,7 +62,6 @@ serve(async (req) => {
       });
     }
 
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await adminClient
       .from("profiles")
       .select("user_id, full_name, email, department")
