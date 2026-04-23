@@ -42,6 +42,7 @@ interface Student {
   full_name: string | null;
   email: string;
   department: string | null;
+  school: string | null;
 }
 
 export function MeetingScheduler() {
@@ -49,14 +50,17 @@ export function MeetingScheduler() {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [supervisorDept, setSupervisorDept] = useState<string | null>(null);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [schools, setSchools] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Form state
   const [audienceType, setAudienceType] = useState<"group" | "student">("group");
+  const [selectedSchool, setSelectedSchool] = useState<string>("__all__");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("__all__");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -65,6 +69,16 @@ export function MeetingScheduler() {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState("10:00");
   const [duration, setDuration] = useState("30");
+
+  // Normalize for case/spacing-insensitive matching
+  const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+
+  // Filtered students based on selected school + department
+  const filteredStudents = allStudents.filter(s => {
+    const schoolOk = selectedSchool === "__all__" || norm(s.school) === norm(selectedSchool);
+    const deptOk = selectedDepartment === "__all__" || norm(s.department) === norm(selectedDepartment);
+    return schoolOk && deptOk;
+  });
 
   useEffect(() => {
     if (!user) return;
