@@ -556,12 +556,12 @@ const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUpload
       });
       if (insErr) throw insErr;
       toast.success('Final submission uploaded');
+      setPendingZip(null);
       onUploaded();
     } catch (err: any) {
       toast.error(err.message || 'Upload failed');
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
   };
 
