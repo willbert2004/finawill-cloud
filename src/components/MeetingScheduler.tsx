@@ -166,6 +166,12 @@ export function MeetingScheduler() {
           if (!deptSet.has(k)) deptSet.set(k, s.department.trim());
         }
       });
+      groupList.forEach(g => {
+        if (g.department && g.department.trim()) {
+          const k = g.department.trim().toLowerCase();
+          if (!deptSet.has(k)) deptSet.set(k, g.department.trim());
+        }
+      });
       setDepartments(Array.from(deptSet.values()).sort());
 
       const enriched = (meetingsData || []).map((m: any) => ({
