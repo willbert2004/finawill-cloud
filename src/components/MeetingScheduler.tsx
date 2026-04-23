@@ -243,7 +243,21 @@ export function MeetingScheduler() {
 
               <div>
                 <Label>Google Meet Link *</Label>
-                <Input placeholder="https://meet.google.com/xxx-xxxx-xxx" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} />
+                <div className="flex gap-2">
+                  <Input placeholder="https://meet.google.com/xxx-xxxx-xxx" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-1"
+                    onClick={() => window.open("https://meet.new", "_blank", "noopener,noreferrer")}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Create
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Click "Create" to open Google Meet, then paste the link here.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
