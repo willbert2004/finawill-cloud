@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { BookOpen, FileCheck, FileWarning, Upload, FileX } from "lucide-react";
 import { useChapterStats } from "@/hooks/useChapterStats";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   /** Title shown on the card */
@@ -10,17 +12,57 @@ interface Props {
   description?: string;
   /** Hide the rejected counter (e.g. on student view) */
   compact?: boolean;
+  /**
+   * System-wide mode (admin): total chapters = approved projects × REQUIRED_CHAPTERS.
+   * Progress = approved chapters / total expected chapters.
+   */
+  systemWide?: boolean;
 }
 
 export function ChapterProgressCard({
   title = "Chapter Progress",
   description = "Across your project chapters",
   compact = false,
+  systemWide = false,
 }: Props) {
   const { stats, loading } = useChapterStats();
   const REQUIRED_CHAPTERS = 6;
-  const approvedOutOfRequired = Math.min(stats.approved, REQUIRED_CHAPTERS);
-  const progressPct = Math.round((approvedOutOfRequired / REQUIRED_CHAPTERS) * 100);
+
+  const [approvedProjects, setApprovedProjects] = useState(0);
+  const [loadingProjects, setLoadingProjects] = useState(systemWide);
+
+  useEffect(() => {
+    if (!systemWide) return;
+    let active = true;
+    const fetchApproved = async () => {
+      setLoadingProjects(true);
+      const { count } = await supabase
+        .from("projects")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "approved");
+      if (active) {
+        setApprovedProjects(count || 0);
+        setLoadingProjects(false);
+      }
+    };
+    fetchApproved();
+    const channel = supabase
+      .channel("chapter-progress-approved-projects")
+      .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, () => fetchApproved())
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [systemWide]);
+
+  const totalRequired = systemWide
+    ? approvedProjects * REQUIRED_CHAPTERS
+    : REQUIRED_CHAPTERS;
+  const approvedOutOfRequired = systemWide
+    ? Math.min(stats.approved, totalRequired)
+    : Math.min(stats.approved, REQUIRED_CHAPTERS);
+  const progressPct = totalRequired > 0
+    ? Math.round((approvedOutOfRequired / totalRequired) * 100)
+    : 0;
+  const isLoading = loading || loadingProjects;
 
   // Color tiers based on progress level
   const getProgressClasses = (pct: number) => {
@@ -45,7 +87,7 @@ export function ChapterProgressCard({
             <CardDescription className="text-xs">{description}</CardDescription>
           </div>
           <Badge variant="outline" className="text-[10px]">
-            {loading ? "—" : `${approvedOutOfRequired} of ${REQUIRED_CHAPTERS} approved`}
+            {isLoading ? "—" : `${approvedOutOfRequired} of ${totalRequired} approved`}
           </Badge>
         </div>
       </CardHeader>
@@ -53,7 +95,7 @@ export function ChapterProgressCard({
         <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-muted-foreground">Approved progress</span>
-            <span className={`font-semibold ${progressClasses.text}`}>{loading ? "—" : `${progressPct}%`}</span>
+            <span className={`font-semibold ${progressClasses.text}`}>{isLoading ? "—" : `${progressPct}%`}</span>
           </div>
           <Progress
             value={progressPct}
@@ -61,11 +103,11 @@ export function ChapterProgressCard({
           />
         </div>
         <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} gap-2`}>
-          <StatTile icon={FileCheck} label="Approved" value={stats.approved} tone="success" loading={loading} />
-          <StatTile icon={Upload} label="Submitted" value={stats.submitted} tone="primary" loading={loading} />
-          <StatTile icon={FileWarning} label="Needs revision" value={stats.needs_revision} tone="warning" loading={loading} />
+          <StatTile icon={FileCheck} label="Approved" value={stats.approved} tone="success" loading={isLoading} />
+          <StatTile icon={Upload} label="Submitted" value={stats.submitted} tone="primary" loading={isLoading} />
+          <StatTile icon={FileWarning} label="Needs revision" value={stats.needs_revision} tone="warning" loading={isLoading} />
           {!compact && (
-            <StatTile icon={FileX} label="Rejected" value={stats.rejected} tone="destructive" loading={loading} />
+            <StatTile icon={FileX} label="Rejected" value={stats.rejected} tone="destructive" loading={isLoading} />
           )}
         </div>
       </CardContent>

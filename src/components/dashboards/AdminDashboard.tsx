@@ -104,6 +104,7 @@ export function AdminDashboard({ user, projectStats, recentProjects, groupCount,
       <ChapterProgressCard
         title="System Chapter Activity"
         description="All projects across departments"
+        systemWide
       />
 
       {/* Recent Projects - Full Width Bottom */}
