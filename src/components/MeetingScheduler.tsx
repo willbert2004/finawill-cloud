@@ -95,7 +95,7 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, { data: studentsData }, { data: schoolsData }] = await Promise.all([
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, { data: studentsData }, { data: schoolsData }, { data: departmentsData }] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -117,7 +117,12 @@ export function MeetingScheduler() {
           .order("full_name", { ascending: true }),
         supabase
           .from("schools")
-          .select("name")
+          .select("id, name")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
+        supabase
+          .from("departments")
+          .select("name, school_id, is_active, schools(name)")
           .eq("is_active", true)
           .order("name", { ascending: true }),
       ]);
@@ -144,8 +149,14 @@ export function MeetingScheduler() {
       });
       setSchools(Array.from(schoolSet.values()).sort());
 
-      // Departments from student profiles (case-insensitive dedupe)
+      // Departments: merge from departments table + student profiles (case-insensitive dedupe)
       const deptSet = new Map<string, string>();
+      (departmentsData || []).forEach((d: any) => {
+        if (d.name && d.name.trim()) {
+          const k = d.name.trim().toLowerCase();
+          if (!deptSet.has(k)) deptSet.set(k, d.name.trim());
+        }
+      });
       studentList.forEach(s => {
         if (s.department && s.department.trim()) {
           const k = s.department.trim().toLowerCase();
