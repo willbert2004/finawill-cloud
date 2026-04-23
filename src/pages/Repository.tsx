@@ -83,7 +83,7 @@ export default function Repository() {
       if (completedProjects.length > 0) {
         const projectIds = completedProjects.map(p => p.id);
         const [{ data: docs }, { data: feedback }] = await Promise.all([
-          supabase.from('project_documents').select('id, file_name, document_type, created_at, project_id').in('project_id', projectIds),
+          supabase.from('project_documents').select('id, file_name, file_path, document_type, created_at, project_id').in('project_id', projectIds),
           supabase.from('supervisor_feedback').select('id, title, content, feedback_type, rating, created_at, project_id').in('project_id', projectIds),
         ]);
         const docsMap: Record<string, ProjectDocument[]> = {};
