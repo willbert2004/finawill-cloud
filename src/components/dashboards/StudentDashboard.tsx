@@ -10,6 +10,10 @@ import {
 import { StudentSupervisorDetails } from "@/components/StudentSupervisorDetails";
 import { UpcomingMeetings } from "@/components/UpcomingMeetings";
 import { ChapterProgressCard } from "@/components/ChapterProgressCard";
+import { useNotifications } from "@/hooks/useNotifications";
+import { Bell, CheckCheck } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface StudentDashboardProps {
   user: any;
@@ -22,6 +26,7 @@ interface StudentDashboardProps {
 
 export function StudentDashboard({ user, projectStats, recentProjects, groupCount, loadingData, greeting }: StudentDashboardProps) {
   const navigate = useNavigate();
+  const { notifications, unreadCount, isLoading: notifLoading, markAsRead, markAllAsRead } = useNotifications();
 
   const quickLinks = [
     { label: "My Projects", icon: FolderKanban, href: "/projects", color: "bg-primary text-primary-foreground" },
@@ -135,6 +140,63 @@ export function StudentDashboard({ user, projectStats, recentProjects, groupCoun
                   </button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Notifications */}
+          <Card className="border-secondary/10">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4 text-secondary" />
+                <CardTitle className="text-sm">Notifications</CardTitle>
+                {unreadCount > 0 && (
+                  <Badge className="h-5 px-1.5 text-[10px] bg-destructive text-destructive-foreground border-0">
+                    {unreadCount} new
+                  </Badge>
+                )}
+              </div>
+              {unreadCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={markAllAsRead}>
+                  <CheckCheck className="h-3 w-3 mr-1" /> Mark all read
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent>
+              {notifLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-6">
+                  <Bell className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">No notifications yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.slice(0, 5).map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        if (!n.read) markAsRead(n.id);
+                        if (n.link) navigate(n.link);
+                      }}
+                      className={cn(
+                        "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                        n.read ? "bg-card hover:bg-muted/40" : "bg-secondary/5 border-secondary/30 hover:bg-secondary/10"
+                      )}
+                    >
+                      <div className={cn("mt-0.5 h-2 w-2 rounded-full shrink-0", !n.read ? "bg-secondary" : "bg-muted-foreground/30")} />
+                      <div className="flex-1 min-w-0">
+                        <p className={cn("text-sm truncate", !n.read ? "font-semibold text-foreground" : "font-medium text-muted-foreground")}>
+                          {n.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{n.message}</p>
+                        <p className="text-[10px] text-muted-foreground/70 mt-1">
+                          {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
