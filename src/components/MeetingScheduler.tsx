@@ -115,22 +115,34 @@ export function MeetingScheduler() {
 
     setSubmitting(true);
     try {
-      const [hours, minutes] = selectedTime.split(":").map(Number);
-      const scheduledAt = new Date(selectedDate);
-      scheduledAt.setHours(hours, minutes, 0, 0);
+      const targetGroupIds = selectedGroup === "__all__"
+        ? groups.map(g => g.id)
+        : [selectedGroup];
 
-      const { error } = await supabase.from("meetings").insert({
+      if (targetGroupIds.length === 0) {
+        toast.error("No groups available to schedule");
+        setSubmitting(false);
+        return;
+      }
+
+      const rows = targetGroupIds.map(gid => ({
         supervisor_id: user.id,
-        group_id: selectedGroup,
+        group_id: gid,
         title,
         description: description || null,
         meeting_link: meetingLink,
         meeting_date: selectedDate.toISOString().split('T')[0],
         meeting_time: selectedTime,
-      } as any);
+      }));
+
+      const { error } = await supabase.from("meetings").insert(rows as any);
 
       if (error) throw error;
-      toast.success("Meeting scheduled! Students have been notified.");
+      toast.success(
+        targetGroupIds.length > 1
+          ? `Meeting scheduled for ${targetGroupIds.length} groups!`
+          : "Meeting scheduled! Students have been notified."
+      );
       resetForm();
       setDialogOpen(false);
     } catch (err: any) {
