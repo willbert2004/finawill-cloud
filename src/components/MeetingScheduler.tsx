@@ -95,7 +95,7 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, { data: studentsData }, { data: schoolsData }, { data: departmentsData }] = await Promise.all([
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, studentsResp, { data: schoolsData }, { data: departmentsData }] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -110,11 +110,7 @@ export function MeetingScheduler() {
           .from("student_groups")
           .select("id, name")
           .order("name", { ascending: true }),
-        supabase
-          .from("profiles")
-          .select("user_id, full_name, email, department, school")
-          .eq("user_type", "student")
-          .order("full_name", { ascending: true }),
+        supabase.functions.invoke("project-directory", { body: { listStudents: true } }),
         supabase
           .from("schools")
           .select("id, name")
@@ -133,7 +129,7 @@ export function MeetingScheduler() {
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
 
-      const studentList = (studentsData || []) as Student[];
+      const studentList = ((studentsResp?.data as any)?.students || []) as Student[];
       setAllStudents(studentList);
 
       // Combine schools from the schools table + any unique values from student profiles (case-insensitive)
