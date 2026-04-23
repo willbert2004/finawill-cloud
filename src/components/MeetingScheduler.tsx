@@ -115,7 +115,7 @@ export function MeetingScheduler() {
           .eq("status", "accepted"),
         supabase
           .from("student_groups")
-          .select("id, name")
+          .select("id, name, department")
           .order("name", { ascending: true }),
         supabase.functions.invoke("project-directory", { body: { listStudents: true } }),
         supabase
@@ -132,7 +132,7 @@ export function MeetingScheduler() {
 
       const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
       const groupList: Group[] = (allGroups || [])
-        .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
+        .map((g: any) => ({ id: g.id, name: g.name, department: g.department ?? null, allocated: allocatedIds.has(g.id) }))
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
 
