@@ -34,6 +34,7 @@ interface Meeting {
 interface Group {
   id: string;
   name: string;
+  department: string | null;
   allocated?: boolean;
 }
 
@@ -80,6 +81,12 @@ export function MeetingScheduler() {
     return schoolOk && deptOk;
   });
 
+  // Filtered groups based on selected department (groups don't have school directly)
+  const filteredGroups = groups.filter(g => {
+    const deptOk = selectedDepartment === "__all__" || norm(g.department) === norm(selectedDepartment);
+    return deptOk;
+  });
+
   useEffect(() => {
     if (!user) return;
     fetchData();
@@ -108,7 +115,7 @@ export function MeetingScheduler() {
           .eq("status", "accepted"),
         supabase
           .from("student_groups")
-          .select("id, name")
+          .select("id, name, department")
           .order("name", { ascending: true }),
         supabase.functions.invoke("project-directory", { body: { listStudents: true } }),
         supabase
@@ -125,7 +132,7 @@ export function MeetingScheduler() {
 
       const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
       const groupList: Group[] = (allGroups || [])
-        .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
+        .map((g: any) => ({ id: g.id, name: g.name, department: g.department ?? null, allocated: allocatedIds.has(g.id) }))
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
 
@@ -157,6 +164,12 @@ export function MeetingScheduler() {
         if (s.department && s.department.trim()) {
           const k = s.department.trim().toLowerCase();
           if (!deptSet.has(k)) deptSet.set(k, s.department.trim());
+        }
+      });
+      groupList.forEach(g => {
+        if (g.department && g.department.trim()) {
+          const k = g.department.trim().toLowerCase();
+          if (!deptSet.has(k)) deptSet.set(k, g.department.trim());
         }
       });
       setDepartments(Array.from(deptSet.values()).sort());
@@ -201,7 +214,7 @@ export function MeetingScheduler() {
 
       if (audienceType === "group") {
         const targetGroupIds = selectedGroup === "__all__"
-          ? groups.map(g => g.id)
+          ? filteredGroups.map(g => g.id)
           : [selectedGroup];
         if (targetGroupIds.length === 0) {
           toast.error("No groups available to schedule");
@@ -351,36 +364,55 @@ export function MeetingScheduler() {
                 </div>
 
                 {audienceType === "group" ? (
-                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a group" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {groups.length === 0 ? (
-                        <SelectItem value="none" disabled>No student groups available</SelectItem>
-                      ) : (
-                        <>
-                          <SelectItem value="__all__">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Users className="h-3 w-3" /> All Groups ({groups.length})
-                            </span>
-                          </SelectItem>
-                          {groups.map(g => (
-                            <SelectItem key={g.id} value={g.id}>
-                              <span className="flex items-center gap-2">
-                                <Users className="h-3 w-3" /> {g.name}
-                                {g.allocated && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
-                                    Allocated
-                                  </Badge>
-                                )}
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground">Department</Label>
+                      <Select value={selectedDepartment} onValueChange={(v) => { setSelectedDepartment(v); setSelectedGroup(""); }}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          <SelectItem value="__all__">All departments</SelectItem>
+                          {departments.map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Choose a group (${filteredGroups.length} available)`} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {filteredGroups.length === 0 ? (
+                          <SelectItem value="none" disabled>No groups match this department</SelectItem>
+                        ) : (
+                          <>
+                            <SelectItem value="__all__">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Users className="h-3 w-3" /> All matching groups ({filteredGroups.length})
                               </span>
                             </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                            {filteredGroups.map(g => (
+                              <SelectItem key={g.id} value={g.id}>
+                                <span className="flex items-center gap-2">
+                                  <Users className="h-3 w-3" /> {g.name}
+                                  {g.department && (
+                                    <span className="text-[10px] text-muted-foreground">· {g.department}</span>
+                                  )}
+                                  {g.allocated && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
+                                      Allocated
+                                    </Badge>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-2">
