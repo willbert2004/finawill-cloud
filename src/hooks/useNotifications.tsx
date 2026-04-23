@@ -83,7 +83,7 @@ export const useNotifications = () => {
     fetchNotifications();
 
     const channel = supabase
-      .channel(`notifications-realtime-${user.id}`)
+      .channel(`notifications-realtime-${user.id}-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         {
