@@ -78,15 +78,12 @@ export const useNotifications = () => {
   };
 
   useEffect(() => {
-    fetchNotifications();
-  }, [user]);
-
-  // Real-time subscription
-  useEffect(() => {
     if (!user) return;
 
+    fetchNotifications();
+
     const channel = supabase
-      .channel('notifications-realtime')
+      .channel(`notifications-realtime-${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -106,7 +103,7 @@ export const useNotifications = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.id]);
 
   return {
     notifications,
