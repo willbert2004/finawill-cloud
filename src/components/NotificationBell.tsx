@@ -36,55 +36,112 @@ const NotificationItem = ({
   onDelete: (id: string) => void;
   onNavigate: (link: string | null) => void;
 }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  // Extract a "Join: <url>" link if embedded in message
+  const joinMatch = notification.message.match(/Join:\s*(https?:\/\/\S+)/i);
+  const joinUrl = joinMatch?.[1];
+
   return (
     <div
       className={cn(
-        'flex items-start gap-3 p-3 border-b border-border last:border-0 hover:bg-accent/50 cursor-pointer transition-colors',
+        'flex flex-col gap-2 p-3 border-b border-border last:border-0 hover:bg-accent/50 transition-colors',
         !notification.read && 'bg-primary/5'
       )}
-      onClick={() => {
-        if (!notification.read) onMarkAsRead(notification.id);
-        onNavigate(notification.link);
-      }}
     >
-      <span className="text-xl">{getNotificationIcon(notification.type)}</span>
-      <div className="flex-1 min-w-0">
-        <p className={cn('text-sm font-medium', !notification.read && 'text-primary')}>
-          {notification.title}
-        </p>
-        <p className="text-xs text-muted-foreground line-clamp-2">
-          {notification.message}
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
-        </p>
-      </div>
-      <div className="flex gap-1">
-        {!notification.read && (
+      <div className="flex items-start gap-3">
+        <span className="text-xl">{getNotificationIcon(notification.type)}</span>
+        <div
+          className="flex-1 min-w-0 cursor-pointer"
+          onClick={() => {
+            if (!notification.read) onMarkAsRead(notification.id);
+            setExpanded((e) => !e);
+          }}
+        >
+          <p className={cn('text-sm font-medium', !notification.read && 'text-primary')}>
+            {notification.title}
+          </p>
+          <p className={cn('text-xs text-muted-foreground', !expanded && 'line-clamp-2')}>
+            {notification.message}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+          </p>
+        </div>
+        <div className="flex gap-1">
           <Button
             variant="ghost"
             size="icon"
             className="h-6 w-6"
             onClick={(e) => {
               e.stopPropagation();
-              onMarkAsRead(notification.id);
+              setExpanded((v) => !v);
+              if (!notification.read) onMarkAsRead(notification.id);
             }}
+            title={expanded ? 'Collapse' : 'Expand'}
           >
-            <Check className="h-3 w-3" />
+            {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-destructive hover:text-destructive"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(notification.id);
-          }}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
+          {!notification.read && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMarkAsRead(notification.id);
+              }}
+              title="Mark as read"
+            >
+              <Check className="h-3 w-3" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-destructive hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(notification.id);
+            }}
+            title="Delete"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
+      {expanded && (
+        <div className="flex flex-wrap gap-2 pl-9">
+          {notification.link && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-7 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!notification.read) onMarkAsRead(notification.id);
+                onNavigate(notification.link);
+              }}
+            >
+              View details
+            </Button>
+          )}
+          {joinUrl && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.open(joinUrl, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Join meeting
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 };
