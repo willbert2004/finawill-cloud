@@ -34,6 +34,7 @@ interface Meeting {
 interface Group {
   id: string;
   name: string;
+  department: string | null;
   allocated?: boolean;
 }
 
