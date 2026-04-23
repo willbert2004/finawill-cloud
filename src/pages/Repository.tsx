@@ -150,7 +150,21 @@ export default function Repository() {
     } catch { toast({ title: "Error", variant: "destructive" }); }
   };
 
-  // Filter by tab
+  const handleDownloadDoc = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage.from('project-chapters').createSignedUrl(filePath, 60);
+      if (error || !data?.signedUrl) throw error || new Error('Could not generate link');
+      const a = document.createElement('a');
+      a.href = data.signedUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e: any) {
+      toast({ title: 'Download failed', description: e?.message || 'Could not download file', variant: 'destructive' });
+    }
+  };
+
   const getTabProjects = (tab: string) => {
     let filtered = projects;
     if (tab === "duplicates") filtered = projects.filter(p => p.is_duplicate);
