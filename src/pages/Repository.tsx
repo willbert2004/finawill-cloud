@@ -27,7 +27,7 @@ interface Project {
 }
 
 interface ProjectDocument {
-  id: string; file_name: string; document_type: string; created_at: string;
+  id: string; file_name: string; file_path?: string; document_type: string; created_at: string;
 }
 
 interface Feedback {
