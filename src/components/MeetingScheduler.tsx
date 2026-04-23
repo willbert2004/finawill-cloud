@@ -364,36 +364,55 @@ export function MeetingScheduler() {
                 </div>
 
                 {audienceType === "group" ? (
-                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a group" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {groups.length === 0 ? (
-                        <SelectItem value="none" disabled>No student groups available</SelectItem>
-                      ) : (
-                        <>
-                          <SelectItem value="__all__">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Users className="h-3 w-3" /> All Groups ({groups.length})
-                            </span>
-                          </SelectItem>
-                          {groups.map(g => (
-                            <SelectItem key={g.id} value={g.id}>
-                              <span className="flex items-center gap-2">
-                                <Users className="h-3 w-3" /> {g.name}
-                                {g.allocated && (
-                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
-                                    Allocated
-                                  </Badge>
-                                )}
+                  <div className="space-y-2">
+                    <div>
+                      <Label className="text-[11px] text-muted-foreground">Department</Label>
+                      <Select value={selectedDepartment} onValueChange={(v) => { setSelectedDepartment(v); setSelectedGroup(""); }}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-72">
+                          <SelectItem value="__all__">All departments</SelectItem>
+                          {departments.map(d => (
+                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Choose a group (${filteredGroups.length} available)`} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {filteredGroups.length === 0 ? (
+                          <SelectItem value="none" disabled>No groups match this department</SelectItem>
+                        ) : (
+                          <>
+                            <SelectItem value="__all__">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Users className="h-3 w-3" /> All matching groups ({filteredGroups.length})
                               </span>
                             </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+                            {filteredGroups.map(g => (
+                              <SelectItem key={g.id} value={g.id}>
+                                <span className="flex items-center gap-2">
+                                  <Users className="h-3 w-3" /> {g.name}
+                                  {g.department && (
+                                    <span className="text-[10px] text-muted-foreground">· {g.department}</span>
+                                  )}
+                                  {g.allocated && (
+                                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
+                                      Allocated
+                                    </Badge>
+                                  )}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     <div className="grid grid-cols-2 gap-2">
