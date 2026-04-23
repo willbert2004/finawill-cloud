@@ -81,6 +81,12 @@ export function MeetingScheduler() {
     return schoolOk && deptOk;
   });
 
+  // Filtered groups based on selected department (groups don't have school directly)
+  const filteredGroups = groups.filter(g => {
+    const deptOk = selectedDepartment === "__all__" || norm(g.department) === norm(selectedDepartment);
+    return deptOk;
+  });
+
   useEffect(() => {
     if (!user) return;
     fetchData();
