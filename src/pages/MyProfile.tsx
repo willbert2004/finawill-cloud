@@ -262,7 +262,7 @@ export default function MyProfile() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleAvatarUpload}
+                      onChange={handleAvatarSelect}
                     />
                   </div>
                   <div>
