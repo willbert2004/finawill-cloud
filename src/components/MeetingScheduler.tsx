@@ -34,6 +34,7 @@ interface Meeting {
 interface Group {
   id: string;
   name: string;
+  allocated?: boolean;
 }
 
 export function MeetingScheduler() {
@@ -69,7 +70,7 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [{ data: meetingsData }, { data: allocations }] = await Promise.all([
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -77,15 +78,20 @@ export function MeetingScheduler() {
           .order("scheduled_at", { ascending: true }),
         supabase
           .from("group_allocations")
-          .select("group_id, student_groups(id, name)")
+          .select("group_id")
           .eq("supervisor_id", user.id)
           .eq("status", "accepted"),
+        supabase
+          .from("student_groups")
+          .select("id, name")
+          .order("name", { ascending: true }),
       ]);
 
-      // Extract groups from allocations
-      const groupList: Group[] = (allocations || [])
-        .filter((a: any) => a.student_groups)
-        .map((a: any) => ({ id: a.student_groups.id, name: a.student_groups.name }));
+      const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
+      // Show all groups; mark allocated ones and put them first
+      const groupList: Group[] = (allGroups || [])
+        .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
+        .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
 
       // Enrich meetings with group names
@@ -109,22 +115,34 @@ export function MeetingScheduler() {
 
     setSubmitting(true);
     try {
-      const [hours, minutes] = selectedTime.split(":").map(Number);
-      const scheduledAt = new Date(selectedDate);
-      scheduledAt.setHours(hours, minutes, 0, 0);
+      const targetGroupIds = selectedGroup === "__all__"
+        ? groups.map(g => g.id)
+        : [selectedGroup];
 
-      const { error } = await supabase.from("meetings").insert({
+      if (targetGroupIds.length === 0) {
+        toast.error("No groups available to schedule");
+        setSubmitting(false);
+        return;
+      }
+
+      const rows = targetGroupIds.map(gid => ({
         supervisor_id: user.id,
-        group_id: selectedGroup,
+        group_id: gid,
         title,
         description: description || null,
         meeting_link: meetingLink,
         meeting_date: selectedDate.toISOString().split('T')[0],
         meeting_time: selectedTime,
-      } as any);
+      }));
+
+      const { error } = await supabase.from("meetings").insert(rows as any);
 
       if (error) throw error;
-      toast.success("Meeting scheduled! Students have been notified.");
+      toast.success(
+        targetGroupIds.length > 1
+          ? `Meeting scheduled for ${targetGroupIds.length} groups!`
+          : "Meeting scheduled! Students have been notified."
+      );
       resetForm();
       setDialogOpen(false);
     } catch (err: any) {
@@ -225,17 +243,29 @@ export function MeetingScheduler() {
                   <SelectTrigger>
                     <SelectValue placeholder="Choose a group" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72">
                     {groups.length === 0 ? (
-                      <SelectItem value="none" disabled>No groups assigned</SelectItem>
+                      <SelectItem value="none" disabled>No student groups available</SelectItem>
                     ) : (
-                      groups.map(g => (
-                        <SelectItem key={g.id} value={g.id}>
-                          <span className="flex items-center gap-2">
-                            <Users className="h-3 w-3" /> {g.name}
+                      <>
+                        <SelectItem value="__all__">
+                          <span className="flex items-center gap-2 font-medium">
+                            <Users className="h-3 w-3" /> All Groups ({groups.length})
                           </span>
                         </SelectItem>
-                      ))
+                        {groups.map(g => (
+                          <SelectItem key={g.id} value={g.id}>
+                            <span className="flex items-center gap-2">
+                              <Users className="h-3 w-3" /> {g.name}
+                              {g.allocated && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
+                                  Allocated
+                                </Badge>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </>
                     )}
                   </SelectContent>
                 </Select>
