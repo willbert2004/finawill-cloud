@@ -446,12 +446,15 @@ export default function Repository() {
             </TabsTrigger>
             <TabsTrigger value="pending">Pending ({pendingCount})</TabsTrigger>
             <TabsTrigger value="finalized">Finalized</TabsTrigger>
+            <TabsTrigger value="final" className="gap-1">
+              <Archive className="h-3.5 w-3.5" /> Final Submissions ({Object.values(projectDocs).filter(ds => ds.some(d => d.document_type === 'final_zip')).length})
+            </TabsTrigger>
             <TabsTrigger value="archived" className="gap-1">
               <ArchiveRestore className="h-3.5 w-3.5" /> Archived ({projects.filter(p => p.status === 'archived').length})
             </TabsTrigger>
           </TabsList>
 
-          {["all", "approved", "duplicates", "pending", "finalized", "archived"].map(tab => (
+          {["all", "approved", "duplicates", "pending", "finalized", "final", "archived"].map(tab => (
             <TabsContent key={tab} value={tab}>
               {loading ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
