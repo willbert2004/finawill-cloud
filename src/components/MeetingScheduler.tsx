@@ -95,16 +95,7 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      // Get supervisor's department first
-      const { data: supProfile } = await supabase
-        .from("profiles")
-        .select("department")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const dept = supProfile?.department || null;
-      setSupervisorDept(dept);
-
-      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, studentsRes] = await Promise.all([
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, { data: studentsData }, { data: schoolsData }] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -119,18 +110,16 @@ export function MeetingScheduler() {
           .from("student_groups")
           .select("id, name")
           .order("name", { ascending: true }),
-        dept
-          ? supabase
-              .from("profiles")
-              .select("user_id, full_name, email, department")
-              .eq("user_type", "student")
-              .eq("department", dept)
-              .order("full_name", { ascending: true })
-          : supabase
-              .from("profiles")
-              .select("user_id, full_name, email, department")
-              .eq("user_type", "student")
-              .order("full_name", { ascending: true }),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, email, department, school")
+          .eq("user_type", "student")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("schools")
+          .select("name")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
       ]);
 
       const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
@@ -138,7 +127,32 @@ export function MeetingScheduler() {
         .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
-      setStudents((studentsRes.data || []) as Student[]);
+
+      const studentList = (studentsData || []) as Student[];
+      setAllStudents(studentList);
+
+      // Combine schools from the schools table + any unique values from student profiles (case-insensitive)
+      const schoolSet = new Map<string, string>();
+      (schoolsData || []).forEach((s: any) => {
+        if (s.name) schoolSet.set(s.name.trim().toLowerCase(), s.name.trim());
+      });
+      studentList.forEach(s => {
+        if (s.school && s.school.trim()) {
+          const k = s.school.trim().toLowerCase();
+          if (!schoolSet.has(k)) schoolSet.set(k, s.school.trim());
+        }
+      });
+      setSchools(Array.from(schoolSet.values()).sort());
+
+      // Departments from student profiles (case-insensitive dedupe)
+      const deptSet = new Map<string, string>();
+      studentList.forEach(s => {
+        if (s.department && s.department.trim()) {
+          const k = s.department.trim().toLowerCase();
+          if (!deptSet.has(k)) deptSet.set(k, s.department.trim());
+        }
+      });
+      setDepartments(Array.from(deptSet.values()).sort());
 
       const enriched = (meetingsData || []).map((m: any) => ({
         ...m,
