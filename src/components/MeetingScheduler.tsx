@@ -203,11 +203,11 @@ export function MeetingScheduler() {
         }
         rows = targetGroupIds.map(gid => ({ ...baseRow, group_id: gid }));
       } else {
-        const targetStudentIds = selectedStudent === "__all_dept__"
-          ? students.map(s => s.user_id)
+        const targetStudentIds = selectedStudent === "__all_filtered__"
+          ? filteredStudents.map(s => s.user_id)
           : [selectedStudent];
         if (targetStudentIds.length === 0) {
-          toast.error("No students found in your department");
+          toast.error("No students match the selected school/department");
           setSubmitting(false);
           return;
         }
