@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
@@ -8,10 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Mail, User, Building2, GraduationCap, Phone, MapPin, Loader2, Pencil, Save, X, Camera, Lock, Clock } from "lucide-react";
+import { ArrowLeft, Mail, User, Building2, GraduationCap, Phone, MapPin, Loader2, Pencil, Save, X, Camera, Lock, Clock, RotateCw, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 
 export default function MyProfile() {
@@ -26,6 +28,18 @@ export default function MyProfile() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorSrc, setEditorSrc] = useState<string | null>(null);
+  const [editorFileName, setEditorFileName] = useState<string>('avatar.png');
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ dragging: boolean; startX: number; startY: number; baseX: number; baseY: number }>({ dragging: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
+  const imgElRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    return () => { if (editorSrc) URL.revokeObjectURL(editorSrc); };
+  }, [editorSrc]);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['my-profile', user?.id],
@@ -107,17 +121,64 @@ export default function MyProfile() {
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    e.target.value = '';
+    if (!file) return;
     if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be less than 2MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be less than 5MB'); return; }
+    const url = URL.createObjectURL(file);
+    setEditorSrc(url);
+    setEditorFileName(file.name);
+    setZoom(1);
+    setRotation(0);
+    setOffset({ x: 0, y: 0 });
+    setEditorOpen(true);
+  };
 
+  const renderCroppedBlob = (size = 512): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      const img = imgElRef.current;
+      if (!img) return resolve(null);
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(null);
+
+      // The preview frame is square; we mirror its transform onto a square canvas.
+      // Compute scale: image is rendered as object-cover in a square preview of side P.
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      const coverScale = Math.max(size / iw, size / ih);
+      const drawW = iw * coverScale * zoom;
+      const drawH = ih * coverScale * zoom;
+
+      // Offset is in preview pixels (frame size 320 in dialog). Scale offset to canvas size.
+      const FRAME = 320;
+      const ox = (offset.x * size) / FRAME;
+      const oy = (offset.y * size) / FRAME;
+
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, size, size);
+      ctx.save();
+      ctx.translate(size / 2 + ox, size / 2 + oy);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+      ctx.restore();
+
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
+    });
+  };
+
+  const handleConfirmAvatar = async () => {
+    if (!user) return;
     setUploadingAvatar(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+      const blob = await renderCroppedBlob(512);
+      if (!blob) throw new Error('Could not process image');
+      const filePath = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, blob, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
       const avatarUrl = `${publicUrl}?t=${Date.now()}`;
@@ -125,6 +186,9 @@ export default function MyProfile() {
       if (updateError) throw updateError;
       await queryClient.invalidateQueries({ queryKey: ['my-profile'] });
       toast.success('Profile picture updated!');
+      setEditorOpen(false);
+      if (editorSrc) URL.revokeObjectURL(editorSrc);
+      setEditorSrc(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload picture');
     } finally {
@@ -198,7 +262,7 @@ export default function MyProfile() {
                       type="file"
                       accept="image/*"
                       className="hidden"
-                      onChange={handleAvatarUpload}
+                      onChange={handleAvatarSelect}
                     />
                   </div>
                   <div>
@@ -343,6 +407,81 @@ export default function MyProfile() {
           </Card>
         )}
       </div>
+
+      <Dialog open={editorOpen} onOpenChange={(o) => { if (!uploadingAvatar) setEditorOpen(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adjust your photo</DialogTitle>
+            <DialogDescription>Drag to reposition, then zoom or rotate. Click Save to update your profile picture.</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-4">
+            <div
+              className="relative w-[320px] h-[320px] rounded-full overflow-hidden bg-black border-2 border-border select-none touch-none cursor-grab active:cursor-grabbing"
+              onPointerDown={(e) => {
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, baseX: offset.x, baseY: offset.y };
+              }}
+              onPointerMove={(e) => {
+                if (!dragRef.current.dragging) return;
+                const dx = e.clientX - dragRef.current.startX;
+                const dy = e.clientY - dragRef.current.startY;
+                setOffset({ x: dragRef.current.baseX + dx, y: dragRef.current.baseY + dy });
+              }}
+              onPointerUp={() => { dragRef.current.dragging = false; }}
+              onPointerCancel={() => { dragRef.current.dragging = false; }}
+            >
+              {editorSrc && (
+                <img
+                  ref={imgElRef}
+                  src={editorSrc}
+                  alt="Preview"
+                  draggable={false}
+                  className="absolute top-1/2 left-1/2 max-w-none pointer-events-none"
+                  style={{
+                    transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                    width: '320px',
+                    height: '320px',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
+            </div>
+
+            <div className="w-full space-y-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5"><ZoomIn className="h-3.5 w-3.5" /> Zoom</span>
+                  <span>{zoom.toFixed(1)}x</span>
+                </div>
+                <Slider value={[zoom]} min={1} max={3} step={0.05} onValueChange={(v) => setZoom(v[0])} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Button variant="outline" size="sm" onClick={() => setRotation(r => (r - 90) % 360)}>
+                  <RotateCw className="h-4 w-4 mr-1.5 -scale-x-100" /> Rotate Left
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setRotation(r => (r + 90) % 360)}>
+                  <RotateCw className="h-4 w-4 mr-1.5" /> Rotate Right
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => { setZoom(1); setRotation(0); setOffset({ x: 0, y: 0 }); }}>
+                  Reset
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">File: {editorFileName}</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setEditorOpen(false)} disabled={uploadingAvatar}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmAvatar} disabled={uploadingAvatar}>
+              {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+              Save Picture
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthenticatedLayout>
   );
 }
