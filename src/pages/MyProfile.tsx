@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { AuthenticatedLayout } from "@/components/AuthenticatedLayout";
@@ -8,10 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Mail, User, Building2, GraduationCap, Phone, MapPin, Loader2, Pencil, Save, X, Camera, Lock, Clock } from "lucide-react";
+import { ArrowLeft, Mail, User, Building2, GraduationCap, Phone, MapPin, Loader2, Pencil, Save, X, Camera, Lock, Clock, RotateCw, ZoomIn } from "lucide-react";
 import { toast } from "sonner";
 
 export default function MyProfile() {
