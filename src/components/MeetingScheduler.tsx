@@ -291,37 +291,96 @@ export function MeetingScheduler() {
               </div>
 
               <div>
-                <Label>Select Group *</Label>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a group" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {groups.length === 0 ? (
-                      <SelectItem value="none" disabled>No student groups available</SelectItem>
-                    ) : (
-                      <>
-                        <SelectItem value="__all__">
-                          <span className="flex items-center gap-2 font-medium">
-                            <Users className="h-3 w-3" /> All Groups ({groups.length})
-                          </span>
-                        </SelectItem>
-                        {groups.map(g => (
-                          <SelectItem key={g.id} value={g.id}>
-                            <span className="flex items-center gap-2">
-                              <Users className="h-3 w-3" /> {g.name}
-                              {g.allocated && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
-                                  Allocated
-                                </Badge>
-                              )}
+                <Label>Meet with *</Label>
+                <div className="flex gap-1 mb-2 p-1 rounded-md bg-muted">
+                  <button
+                    type="button"
+                    onClick={() => setAudienceType("group")}
+                    className={cn(
+                      "flex-1 text-xs font-medium py-1.5 rounded transition-colors",
+                      audienceType === "group" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    <Users className="h-3 w-3 inline mr-1" /> Group
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAudienceType("student")}
+                    className={cn(
+                      "flex-1 text-xs font-medium py-1.5 rounded transition-colors",
+                      audienceType === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    <Users className="h-3 w-3 inline mr-1" /> Student{supervisorDept ? ` (${supervisorDept})` : ""}
+                  </button>
+                </div>
+
+                {audienceType === "group" ? (
+                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a group" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {groups.length === 0 ? (
+                        <SelectItem value="none" disabled>No student groups available</SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="__all__">
+                            <span className="flex items-center gap-2 font-medium">
+                              <Users className="h-3 w-3" /> All Groups ({groups.length})
                             </span>
                           </SelectItem>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                          {groups.map(g => (
+                            <SelectItem key={g.id} value={g.id}>
+                              <span className="flex items-center gap-2">
+                                <Users className="h-3 w-3" /> {g.name}
+                                {g.allocated && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
+                                    Allocated
+                                  </Badge>
+                                )}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={supervisorDept ? `Choose a student in ${supervisorDept}` : "Choose a student"} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {students.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No students found{supervisorDept ? ` in ${supervisorDept}` : ""}
+                        </SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="__all_dept__">
+                            <span className="flex items-center gap-2 font-medium">
+                              <Users className="h-3 w-3" /> All students{supervisorDept ? ` in ${supervisorDept}` : ""} ({students.length})
+                            </span>
+                          </SelectItem>
+                          {students.map(s => (
+                            <SelectItem key={s.user_id} value={s.user_id}>
+                              <span className="flex items-center gap-2">
+                                {s.full_name || s.email}
+                                <span className="text-[10px] text-muted-foreground">{s.email}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+                {audienceType === "student" && !supervisorDept && (
+                  <p className="text-[11px] text-warning mt-1">
+                    Set your department in your profile to filter students by department.
+                  </p>
+                )}
               </div>
 
               <div>
