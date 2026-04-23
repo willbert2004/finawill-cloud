@@ -523,15 +523,22 @@ interface FinalPanelProps {
 
 const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUploaded, onDownload }: FinalPanelProps) => {
   const [uploading, setUploading] = useState(false);
+  const [pendingZip, setPendingZip] = useState<File | null>(null);
 
-  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleZipSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    e.target.value = '';
+    if (!file) return;
     if (!/\.(zip|rar|7z)$/i.test(file.name)) {
       toast.error('Please upload a .zip (or .rar/.7z) archive containing your documentation and prototype.');
-      e.target.value = '';
       return;
     }
+    setPendingZip(file);
+  };
+
+  const confirmZipUpload = async () => {
+    if (!pendingZip || !userId) return;
+    const file = pendingZip;
     setUploading(true);
     try {
       const path = `${projectId}/final/${Date.now()}-${file.name}`;
@@ -549,12 +556,12 @@ const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUpload
       });
       if (insErr) throw insErr;
       toast.success('Final submission uploaded');
+      setPendingZip(null);
       onUploaded();
     } catch (err: any) {
       toast.error(err.message || 'Upload failed');
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
   };
 
@@ -595,7 +602,28 @@ const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUpload
         {isStudent && (
           <div className="space-y-2">
             <Label className="text-sm">{finalZip ? 'Replace with a new version' : 'Upload final ZIP'}</Label>
-            <Input type="file" onChange={handleZipUpload} disabled={uploading} accept=".zip,.rar,.7z" />
+            <Input type="file" onChange={handleZipSelected} disabled={uploading} accept=".zip,.rar,.7z" />
+            {pendingZip && (
+              <div className="flex items-center justify-between gap-2 p-3 rounded-md border bg-background/60">
+                <div className="text-sm flex items-center gap-2 min-w-0">
+                  <FileArchive className="h-4 w-4 text-success shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{pendingZip.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {(pendingZip.size / (1024 * 1024)).toFixed(2)} MB — ready to submit
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => setPendingZip(null)} disabled={uploading}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={confirmZipUpload} disabled={uploading}>
+                    {uploading ? 'Submitting…' : 'Confirm & Submit'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
