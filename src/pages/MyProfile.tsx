@@ -409,7 +409,7 @@ export default function MyProfile() {
       </div>
 
       <Dialog open={editorOpen} onOpenChange={(o) => { if (!uploadingAvatar) setEditorOpen(o); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Adjust your photo</DialogTitle>
             <DialogDescription>Drag to reposition, then zoom or rotate. Click Save to update your profile picture.</DialogDescription>
@@ -417,7 +417,7 @@ export default function MyProfile() {
 
           <div className="flex flex-col items-center gap-4">
             <div
-              className="relative w-[320px] h-[320px] rounded-full overflow-hidden bg-black border-2 border-border select-none touch-none cursor-grab active:cursor-grabbing"
+              className="relative w-[260px] h-[260px] sm:w-[320px] sm:h-[320px] rounded-full overflow-hidden bg-black border-2 border-border select-none touch-none cursor-grab active:cursor-grabbing"
               onPointerDown={(e) => {
                 (e.target as HTMLElement).setPointerCapture(e.pointerId);
                 dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, baseX: offset.x, baseY: offset.y };
