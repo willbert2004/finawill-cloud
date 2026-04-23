@@ -34,6 +34,7 @@ interface Meeting {
 interface Group {
   id: string;
   name: string;
+  allocated?: boolean;
 }
 
 export function MeetingScheduler() {
