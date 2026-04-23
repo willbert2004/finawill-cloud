@@ -29,6 +29,7 @@ interface Meeting {
   status: string;
   group_id: string;
   group_name?: string;
+  group_department?: string | null;
 }
 
 interface Group {
