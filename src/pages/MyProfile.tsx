@@ -121,17 +121,64 @@ export default function MyProfile() {
     }
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    e.target.value = '';
+    if (!file) return;
     if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be less than 2MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be less than 5MB'); return; }
+    const url = URL.createObjectURL(file);
+    setEditorSrc(url);
+    setEditorFileName(file.name);
+    setZoom(1);
+    setRotation(0);
+    setOffset({ x: 0, y: 0 });
+    setEditorOpen(true);
+  };
 
+  const renderCroppedBlob = (size = 512): Promise<Blob | null> => {
+    return new Promise((resolve) => {
+      const img = imgElRef.current;
+      if (!img) return resolve(null);
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(null);
+
+      // The preview frame is square; we mirror its transform onto a square canvas.
+      // Compute scale: image is rendered as object-cover in a square preview of side P.
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      const coverScale = Math.max(size / iw, size / ih);
+      const drawW = iw * coverScale * zoom;
+      const drawH = ih * coverScale * zoom;
+
+      // Offset is in preview pixels (frame size 320 in dialog). Scale offset to canvas size.
+      const FRAME = 320;
+      const ox = (offset.x * size) / FRAME;
+      const oy = (offset.y * size) / FRAME;
+
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, size, size);
+      ctx.save();
+      ctx.translate(size / 2 + ox, size / 2 + oy);
+      ctx.rotate((rotation * Math.PI) / 180);
+      ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+      ctx.restore();
+
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
+    });
+  };
+
+  const handleConfirmAvatar = async () => {
+    if (!user) return;
     setUploadingAvatar(true);
     try {
-      const fileExt = file.name.split('.').pop();
-      const filePath = `${user.id}/avatar.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
+      const blob = await renderCroppedBlob(512);
+      if (!blob) throw new Error('Could not process image');
+      const filePath = `${user.id}/avatar.jpg`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, blob, { upsert: true, contentType: 'image/jpeg' });
       if (uploadError) throw uploadError;
       const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(filePath);
       const avatarUrl = `${publicUrl}?t=${Date.now()}`;
@@ -139,6 +186,9 @@ export default function MyProfile() {
       if (updateError) throw updateError;
       await queryClient.invalidateQueries({ queryKey: ['my-profile'] });
       toast.success('Profile picture updated!');
+      setEditorOpen(false);
+      if (editorSrc) URL.revokeObjectURL(editorSrc);
+      setEditorSrc(null);
     } catch (err: any) {
       toast.error(err.message || 'Failed to upload picture');
     } finally {
