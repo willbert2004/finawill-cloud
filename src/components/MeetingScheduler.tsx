@@ -37,20 +37,31 @@ interface Group {
   allocated?: boolean;
 }
 
+interface Student {
+  user_id: string;
+  full_name: string | null;
+  email: string;
+  department: string | null;
+}
+
 export function MeetingScheduler() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [supervisorDept, setSupervisorDept] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Form state
+  const [audienceType, setAudienceType] = useState<"group" | "student">("group");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState("10:00");
   const [duration, setDuration] = useState("30");
@@ -70,7 +81,16 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }] = await Promise.all([
+      // Get supervisor's department first
+      const { data: supProfile } = await supabase
+        .from("profiles")
+        .select("department")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const dept = supProfile?.department || null;
+      setSupervisorDept(dept);
+
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, studentsRes] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -85,19 +105,30 @@ export function MeetingScheduler() {
           .from("student_groups")
           .select("id, name")
           .order("name", { ascending: true }),
+        dept
+          ? supabase
+              .from("profiles")
+              .select("user_id, full_name, email, department")
+              .eq("user_type", "student")
+              .eq("department", dept)
+              .order("full_name", { ascending: true })
+          : supabase
+              .from("profiles")
+              .select("user_id, full_name, email, department")
+              .eq("user_type", "student")
+              .order("full_name", { ascending: true }),
       ]);
 
       const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
-      // Show all groups; mark allocated ones and put them first
       const groupList: Group[] = (allGroups || [])
         .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
+      setStudents((studentsRes.data || []) as Student[]);
 
-      // Enrich meetings with group names
       const enriched = (meetingsData || []).map((m: any) => ({
         ...m,
-        group_name: groupList.find(g => g.id === m.group_id)?.name || "Unknown Group",
+        group_name: groupList.find(g => g.id === m.group_id)?.name || (m.student_id ? "Individual student" : "Unknown Group"),
       }));
       setMeetings(enriched);
     } catch (err) {
@@ -108,40 +139,60 @@ export function MeetingScheduler() {
   };
 
   const handleSchedule = async () => {
-    if (!user || !title || !meetingLink || !selectedGroup || !selectedDate) {
+    if (!user || !title || !meetingLink || !selectedDate) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+    if (audienceType === "group" && !selectedGroup) {
+      toast.error("Please select a group");
+      return;
+    }
+    if (audienceType === "student" && !selectedStudent) {
+      toast.error("Please select a student");
       return;
     }
 
     setSubmitting(true);
     try {
-      const targetGroupIds = selectedGroup === "__all__"
-        ? groups.map(g => g.id)
-        : [selectedGroup];
-
-      if (targetGroupIds.length === 0) {
-        toast.error("No groups available to schedule");
-        setSubmitting(false);
-        return;
-      }
-
-      const rows = targetGroupIds.map(gid => ({
+      let rows: any[] = [];
+      const baseRow = {
         supervisor_id: user.id,
-        group_id: gid,
         title,
         description: description || null,
         meeting_link: meetingLink,
         meeting_date: selectedDate.toISOString().split('T')[0],
         meeting_time: selectedTime,
-      }));
+      };
+
+      if (audienceType === "group") {
+        const targetGroupIds = selectedGroup === "__all__"
+          ? groups.map(g => g.id)
+          : [selectedGroup];
+        if (targetGroupIds.length === 0) {
+          toast.error("No groups available to schedule");
+          setSubmitting(false);
+          return;
+        }
+        rows = targetGroupIds.map(gid => ({ ...baseRow, group_id: gid }));
+      } else {
+        const targetStudentIds = selectedStudent === "__all_dept__"
+          ? students.map(s => s.user_id)
+          : [selectedStudent];
+        if (targetStudentIds.length === 0) {
+          toast.error("No students found in your department");
+          setSubmitting(false);
+          return;
+        }
+        rows = targetStudentIds.map(sid => ({ ...baseRow, student_id: sid }));
+      }
 
       const { error } = await supabase.from("meetings").insert(rows as any);
 
       if (error) throw error;
       toast.success(
-        targetGroupIds.length > 1
-          ? `Meeting scheduled for ${targetGroupIds.length} groups!`
-          : "Meeting scheduled! Students have been notified."
+        rows.length > 1
+          ? `Meeting scheduled for ${rows.length} ${audienceType === "group" ? "groups" : "students"}!`
+          : "Meeting scheduled! Notification sent."
       );
       resetForm();
       setDialogOpen(false);
@@ -169,6 +220,8 @@ export function MeetingScheduler() {
     setDescription("");
     setMeetingLink("");
     setSelectedGroup("");
+    setSelectedStudent("");
+    setAudienceType("group");
     setSelectedDate(undefined);
     setSelectedTime("10:00");
     setDuration("30");
