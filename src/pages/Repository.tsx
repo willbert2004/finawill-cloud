@@ -151,17 +151,44 @@ export default function Repository() {
     } catch { toast({ title: "Error", variant: "destructive" }); }
   };
 
-  const handleDownloadDoc = async (filePath: string, fileName: string) => {
+  const handleDownloadDoc = async (filePath: string, fileName: string, docId: string) => {
     try {
+      setDownloadProgress(p => ({ ...p, [docId]: 0 }));
       const { data, error } = await supabase.storage.from('project-chapters').createSignedUrl(filePath, 60);
       if (error || !data?.signedUrl) throw error || new Error('Could not generate link');
+
+      const response = await fetch(data.signedUrl);
+      if (!response.ok || !response.body) throw new Error('Failed to fetch file');
+
+      const total = Number(response.headers.get('content-length')) || 0;
+      const reader = response.body.getReader();
+      const chunks: Uint8Array[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          chunks.push(value);
+          received += value.length;
+          const pct = total ? Math.min(99, Math.round((received / total) * 100)) : Math.min(99, (received / (1024 * 1024)) * 5);
+          setDownloadProgress(p => ({ ...p, [docId]: pct }));
+        }
+      }
+
+      const blob = new Blob(chunks);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = data.signedUrl;
+      a.href = url;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
+      URL.revokeObjectURL(url);
+      setDownloadProgress(p => ({ ...p, [docId]: 100 }));
+      setTimeout(() => setDownloadProgress(p => { const n = { ...p }; delete n[docId]; return n; }), 1500);
     } catch (e: any) {
+      setDownloadProgress(p => { const n = { ...p }; delete n[docId]; return n; });
       toast({ title: 'Download failed', description: e?.message || 'Could not download file', variant: 'destructive' });
     }
   };
