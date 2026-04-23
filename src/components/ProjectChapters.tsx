@@ -523,15 +523,22 @@ interface FinalPanelProps {
 
 const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUploaded, onDownload }: FinalPanelProps) => {
   const [uploading, setUploading] = useState(false);
+  const [pendingZip, setPendingZip] = useState<File | null>(null);
 
-  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleZipSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !userId) return;
+    e.target.value = '';
+    if (!file) return;
     if (!/\.(zip|rar|7z)$/i.test(file.name)) {
       toast.error('Please upload a .zip (or .rar/.7z) archive containing your documentation and prototype.');
-      e.target.value = '';
       return;
     }
+    setPendingZip(file);
+  };
+
+  const confirmZipUpload = async () => {
+    if (!pendingZip || !userId) return;
+    const file = pendingZip;
     setUploading(true);
     try {
       const path = `${projectId}/final/${Date.now()}-${file.name}`;
