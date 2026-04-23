@@ -10,6 +10,10 @@ import {
 import { StudentSupervisorDetails } from "@/components/StudentSupervisorDetails";
 import { UpcomingMeetings } from "@/components/UpcomingMeetings";
 import { ChapterProgressCard } from "@/components/ChapterProgressCard";
+import { useNotifications } from "@/hooks/useNotifications";
+import { Bell, CheckCheck } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface StudentDashboardProps {
   user: any;
@@ -22,6 +26,7 @@ interface StudentDashboardProps {
 
 export function StudentDashboard({ user, projectStats, recentProjects, groupCount, loadingData, greeting }: StudentDashboardProps) {
   const navigate = useNavigate();
+  const { notifications, unreadCount, isLoading: notifLoading, markAsRead, markAllAsRead } = useNotifications();
 
   const quickLinks = [
     { label: "My Projects", icon: FolderKanban, href: "/projects", color: "bg-primary text-primary-foreground" },
