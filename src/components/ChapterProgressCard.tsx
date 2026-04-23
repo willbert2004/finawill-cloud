@@ -87,7 +87,7 @@ export function ChapterProgressCard({
             <CardDescription className="text-xs">{description}</CardDescription>
           </div>
           <Badge variant="outline" className="text-[10px]">
-            {loading ? "—" : `${approvedOutOfRequired} of ${REQUIRED_CHAPTERS} approved`}
+            {isLoading ? "—" : `${approvedOutOfRequired} of ${totalRequired} approved`}
           </Badge>
         </div>
       </CardHeader>
@@ -95,7 +95,7 @@ export function ChapterProgressCard({
         <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-muted-foreground">Approved progress</span>
-            <span className={`font-semibold ${progressClasses.text}`}>{loading ? "—" : `${progressPct}%`}</span>
+            <span className={`font-semibold ${progressClasses.text}`}>{isLoading ? "—" : `${progressPct}%`}</span>
           </div>
           <Progress
             value={progressPct}
@@ -103,11 +103,11 @@ export function ChapterProgressCard({
           />
         </div>
         <div className={`grid ${compact ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-4"} gap-2`}>
-          <StatTile icon={FileCheck} label="Approved" value={stats.approved} tone="success" loading={loading} />
-          <StatTile icon={Upload} label="Submitted" value={stats.submitted} tone="primary" loading={loading} />
-          <StatTile icon={FileWarning} label="Needs revision" value={stats.needs_revision} tone="warning" loading={loading} />
+          <StatTile icon={FileCheck} label="Approved" value={stats.approved} tone="success" loading={isLoading} />
+          <StatTile icon={Upload} label="Submitted" value={stats.submitted} tone="primary" loading={isLoading} />
+          <StatTile icon={FileWarning} label="Needs revision" value={stats.needs_revision} tone="warning" loading={isLoading} />
           {!compact && (
-            <StatTile icon={FileX} label="Rejected" value={stats.rejected} tone="destructive" loading={loading} />
+            <StatTile icon={FileX} label="Rejected" value={stats.rejected} tone="destructive" loading={isLoading} />
           )}
         </div>
       </CardContent>
