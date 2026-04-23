@@ -407,6 +407,81 @@ export default function MyProfile() {
           </Card>
         )}
       </div>
+
+      <Dialog open={editorOpen} onOpenChange={(o) => { if (!uploadingAvatar) setEditorOpen(o); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adjust your photo</DialogTitle>
+            <DialogDescription>Drag to reposition, then zoom or rotate. Click Save to update your profile picture.</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center gap-4">
+            <div
+              className="relative w-[320px] h-[320px] rounded-full overflow-hidden bg-black border-2 border-border select-none touch-none cursor-grab active:cursor-grabbing"
+              onPointerDown={(e) => {
+                (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                dragRef.current = { dragging: true, startX: e.clientX, startY: e.clientY, baseX: offset.x, baseY: offset.y };
+              }}
+              onPointerMove={(e) => {
+                if (!dragRef.current.dragging) return;
+                const dx = e.clientX - dragRef.current.startX;
+                const dy = e.clientY - dragRef.current.startY;
+                setOffset({ x: dragRef.current.baseX + dx, y: dragRef.current.baseY + dy });
+              }}
+              onPointerUp={() => { dragRef.current.dragging = false; }}
+              onPointerCancel={() => { dragRef.current.dragging = false; }}
+            >
+              {editorSrc && (
+                <img
+                  ref={imgElRef}
+                  src={editorSrc}
+                  alt="Preview"
+                  draggable={false}
+                  className="absolute top-1/2 left-1/2 max-w-none pointer-events-none"
+                  style={{
+                    transform: `translate(-50%, -50%) translate(${offset.x}px, ${offset.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                    width: '320px',
+                    height: '320px',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
+            </div>
+
+            <div className="w-full space-y-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5"><ZoomIn className="h-3.5 w-3.5" /> Zoom</span>
+                  <span>{zoom.toFixed(1)}x</span>
+                </div>
+                <Slider value={[zoom]} min={1} max={3} step={0.05} onValueChange={(v) => setZoom(v[0])} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Button variant="outline" size="sm" onClick={() => setRotation(r => (r - 90) % 360)}>
+                  <RotateCw className="h-4 w-4 mr-1.5 -scale-x-100" /> Rotate Left
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setRotation(r => (r + 90) % 360)}>
+                  <RotateCw className="h-4 w-4 mr-1.5" /> Rotate Right
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => { setZoom(1); setRotation(0); setOffset({ x: 0, y: 0 }); }}>
+                  Reset
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground truncate">File: {editorFileName}</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setEditorOpen(false)} disabled={uploadingAvatar}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmAvatar} disabled={uploadingAvatar}>
+              {uploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+              Save Picture
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AuthenticatedLayout>
   );
 }
