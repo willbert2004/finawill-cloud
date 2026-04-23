@@ -602,7 +602,28 @@ const FinalSubmissionPanel = ({ projectId, isStudent, finalZip, userId, onUpload
         {isStudent && (
           <div className="space-y-2">
             <Label className="text-sm">{finalZip ? 'Replace with a new version' : 'Upload final ZIP'}</Label>
-            <Input type="file" onChange={handleZipUpload} disabled={uploading} accept=".zip,.rar,.7z" />
+            <Input type="file" onChange={handleZipSelected} disabled={uploading} accept=".zip,.rar,.7z" />
+            {pendingZip && (
+              <div className="flex items-center justify-between gap-2 p-3 rounded-md border bg-background/60">
+                <div className="text-sm flex items-center gap-2 min-w-0">
+                  <FileArchive className="h-4 w-4 text-success shrink-0" />
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{pendingZip.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {(pendingZip.size / (1024 * 1024)).toFixed(2)} MB — ready to submit
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => setPendingZip(null)} disabled={uploading}>
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={confirmZipUpload} disabled={uploading}>
+                    {uploading ? 'Submitting…' : 'Confirm & Submit'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
