@@ -587,6 +587,11 @@ export function MeetingScheduler() {
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Users className="h-3 w-3" /> {m.group_name}
+                        {m.group_department && (
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 ml-1">
+                            {m.group_department}
+                          </Badge>
+                        )}
                       </span>
                       <span className="flex items-center gap-1">
                         <CalendarIcon className="h-3 w-3" /> {format(new Date(m.scheduled_at), "PPP")}
@@ -595,6 +600,9 @@ export function MeetingScheduler() {
                         <Clock className="h-3 w-3" /> {format(new Date(m.scheduled_at), "HH:mm")} · {m.duration_minutes}min
                       </span>
                     </div>
+                    <p className="text-[10px] text-muted-foreground italic mt-0.5">
+                      ✓ Notified members of {m.group_name}
+                    </p>
                     {m.description && <p className="text-xs text-muted-foreground mt-1">{m.description}</p>}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
