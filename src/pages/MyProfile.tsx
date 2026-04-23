@@ -28,6 +28,18 @@ export default function MyProfile() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorSrc, setEditorSrc] = useState<string | null>(null);
+  const [editorFileName, setEditorFileName] = useState<string>('avatar.png');
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ dragging: boolean; startX: number; startY: number; baseX: number; baseY: number }>({ dragging: false, startX: 0, startY: 0, baseX: 0, baseY: 0 });
+  const imgElRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    return () => { if (editorSrc) URL.revokeObjectURL(editorSrc); };
+  }, [editorSrc]);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['my-profile', user?.id],
