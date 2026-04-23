@@ -288,9 +288,29 @@ export default function Repository() {
                                 </Badge>
                               </div>
                               {doc.file_path && (
-                                <Button variant="ghost" size="sm" className="h-6 px-2 shrink-0" onClick={() => handleDownloadDoc(doc.file_path!, doc.file_name)}>
-                                  <Download className="h-3 w-3 mr-1" /> Download
-                                </Button>
+                                <div className="flex items-center gap-2 shrink-0 min-w-[140px] justify-end">
+                                  {downloadProgress[doc.id] !== undefined && (
+                                    <div className="flex items-center gap-1.5 min-w-[90px]">
+                                      <Progress value={downloadProgress[doc.id]} className="h-1.5 flex-1" />
+                                      <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">
+                                        {downloadProgress[doc.id]}%
+                                      </span>
+                                    </div>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2"
+                                    disabled={downloadProgress[doc.id] !== undefined && downloadProgress[doc.id] < 100}
+                                    onClick={() => handleDownloadDoc(doc.file_path!, doc.file_name, doc.id)}
+                                  >
+                                    {downloadProgress[doc.id] !== undefined && downloadProgress[doc.id] < 100 ? (
+                                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Downloading</>
+                                    ) : (
+                                      <><Download className="h-3 w-3 mr-1" /> Download</>
+                                    )}
+                                  </Button>
+                                </div>
                               )}
                             </div>
                           );
