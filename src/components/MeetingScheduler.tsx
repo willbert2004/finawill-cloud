@@ -70,7 +70,7 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [{ data: meetingsData }, { data: allocations }] = await Promise.all([
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -78,15 +78,20 @@ export function MeetingScheduler() {
           .order("scheduled_at", { ascending: true }),
         supabase
           .from("group_allocations")
-          .select("group_id, student_groups(id, name)")
+          .select("group_id")
           .eq("supervisor_id", user.id)
           .eq("status", "accepted"),
+        supabase
+          .from("student_groups")
+          .select("id, name")
+          .order("name", { ascending: true }),
       ]);
 
-      // Extract groups from allocations
-      const groupList: Group[] = (allocations || [])
-        .filter((a: any) => a.student_groups)
-        .map((a: any) => ({ id: a.student_groups.id, name: a.student_groups.name }));
+      const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
+      // Show all groups; mark allocated ones and put them first
+      const groupList: Group[] = (allGroups || [])
+        .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
+        .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
 
       // Enrich meetings with group names
