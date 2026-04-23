@@ -175,10 +175,14 @@ export function MeetingScheduler() {
       });
       setDepartments(Array.from(deptSet.values()).sort());
 
-      const enriched = (meetingsData || []).map((m: any) => ({
-        ...m,
-        group_name: groupList.find(g => g.id === m.group_id)?.name || (m.student_id ? "Individual student" : "Unknown Group"),
-      }));
+      const enriched = (meetingsData || []).map((m: any) => {
+        const g = groupList.find(x => x.id === m.group_id);
+        return {
+          ...m,
+          group_name: g?.name || (m.student_id ? "Individual student" : "Unknown Group"),
+          group_department: g?.department || null,
+        };
+      });
       setMeetings(enriched);
     } catch (err) {
       console.error(err);
