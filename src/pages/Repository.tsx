@@ -54,6 +54,7 @@ export default function Repository() {
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [bulkImportData, setBulkImportData] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [downloadProgress, setDownloadProgress] = useState<Record<string, number>>({});
 
   useEffect(() => { if (!user) { navigate('/auth'); return; } fetchData(); }, [user, navigate]);
 
