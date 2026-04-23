@@ -245,15 +245,28 @@ export default function Repository() {
                     <div className="p-3 bg-muted/50 border border-border rounded-lg">
                       <div className="flex items-center gap-1.5 text-xs font-medium text-foreground mb-2">
                         <FileText className="h-3.5 w-3.5 text-primary" />
-                        Documents Submitted ({docs.length})
+                        Final Documents & Prototype ({docs.length})
                       </div>
-                      <div className="space-y-1">
-                        {docs.map(doc => (
-                          <div key={doc.id} className="flex items-center justify-between text-xs text-muted-foreground">
-                            <span className="truncate">{doc.file_name}</span>
-                            <Badge variant="outline" className="text-[9px] shrink-0">{doc.document_type}</Badge>
-                          </div>
-                        ))}
+                      <div className="space-y-1.5">
+                        {docs.map(doc => {
+                          const isFinal = doc.document_type === 'final_zip';
+                          return (
+                            <div key={doc.id} className={`flex items-center justify-between gap-2 text-xs ${isFinal ? 'p-2 rounded-md bg-success/10 border border-success/30' : ''}`}>
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <FileText className={`h-3.5 w-3.5 shrink-0 ${isFinal ? 'text-success' : 'text-muted-foreground'}`} />
+                                <span className="truncate text-foreground">{doc.file_name}</span>
+                                <Badge variant={isFinal ? 'default' : 'outline'} className="text-[9px] shrink-0">
+                                  {isFinal ? 'Final ZIP' : doc.document_type}
+                                </Badge>
+                              </div>
+                              {doc.file_path && (
+                                <Button variant="ghost" size="sm" className="h-6 px-2 shrink-0" onClick={() => handleDownloadDoc(doc.file_path!, doc.file_name)}>
+                                  <Download className="h-3 w-3 mr-1" /> Download
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
