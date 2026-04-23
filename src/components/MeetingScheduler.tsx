@@ -339,7 +339,7 @@ export function MeetingScheduler() {
                       audienceType === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
                     )}
                   >
-                    <Users className="h-3 w-3 inline mr-1" /> Student{supervisorDept ? ` (${supervisorDept})` : ""}
+                    <Users className="h-3 w-3 inline mr-1" /> Student
                   </button>
                 </div>
 
@@ -375,39 +375,67 @@ export function MeetingScheduler() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={supervisorDept ? `Choose a student in ${supervisorDept}` : "Choose a student"} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {students.length === 0 ? (
-                        <SelectItem value="none" disabled>
-                          No students found{supervisorDept ? ` in ${supervisorDept}` : ""}
-                        </SelectItem>
-                      ) : (
-                        <>
-                          <SelectItem value="__all_dept__">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Users className="h-3 w-3" /> All students{supervisorDept ? ` in ${supervisorDept}` : ""} ({students.length})
-                            </span>
-                          </SelectItem>
-                          {students.map(s => (
-                            <SelectItem key={s.user_id} value={s.user_id}>
-                              <span className="flex items-center gap-2">
-                                {s.full_name || s.email}
-                                <span className="text-[10px] text-muted-foreground">{s.email}</span>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground">School</Label>
+                        <Select value={selectedSchool} onValueChange={(v) => { setSelectedSchool(v); setSelectedStudent(""); }}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            <SelectItem value="__all__">All schools</SelectItem>
+                            {schools.map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground">Department</Label>
+                        <Select value={selectedDepartment} onValueChange={(v) => { setSelectedDepartment(v); setSelectedStudent(""); }}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            <SelectItem value="__all__">All departments</SelectItem>
+                            {departments.map(d => (
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Choose a student (${filteredStudents.length} available)`} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {filteredStudents.length === 0 ? (
+                          <SelectItem value="none" disabled>No students match these filters</SelectItem>
+                        ) : (
+                          <>
+                            <SelectItem value="__all_filtered__">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Users className="h-3 w-3" /> All matching students ({filteredStudents.length})
                               </span>
                             </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-                {audienceType === "student" && !supervisorDept && (
-                  <p className="text-[11px] text-warning mt-1">
-                    Set your department in your profile to filter students by department.
-                  </p>
+                            {filteredStudents.map(s => (
+                              <SelectItem key={s.user_id} value={s.user_id}>
+                                <span className="flex flex-col">
+                                  <span>{s.full_name || s.email}</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {s.department || "—"} · {s.school || "—"}
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
               </div>
 
