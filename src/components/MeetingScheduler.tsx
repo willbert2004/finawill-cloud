@@ -243,17 +243,29 @@ export function MeetingScheduler() {
                   <SelectTrigger>
                     <SelectValue placeholder="Choose a group" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-72">
                     {groups.length === 0 ? (
-                      <SelectItem value="none" disabled>No groups assigned</SelectItem>
+                      <SelectItem value="none" disabled>No student groups available</SelectItem>
                     ) : (
-                      groups.map(g => (
-                        <SelectItem key={g.id} value={g.id}>
-                          <span className="flex items-center gap-2">
-                            <Users className="h-3 w-3" /> {g.name}
+                      <>
+                        <SelectItem value="__all__">
+                          <span className="flex items-center gap-2 font-medium">
+                            <Users className="h-3 w-3" /> All Groups ({groups.length})
                           </span>
                         </SelectItem>
-                      ))
+                        {groups.map(g => (
+                          <SelectItem key={g.id} value={g.id}>
+                            <span className="flex items-center gap-2">
+                              <Users className="h-3 w-3" /> {g.name}
+                              {g.allocated && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
+                                  Allocated
+                                </Badge>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </>
                     )}
                   </SelectContent>
                 </Select>
