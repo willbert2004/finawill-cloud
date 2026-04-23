@@ -42,6 +42,7 @@ interface Student {
   full_name: string | null;
   email: string;
   department: string | null;
+  school: string | null;
 }
 
 export function MeetingScheduler() {
@@ -49,14 +50,17 @@ export function MeetingScheduler() {
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [supervisorDept, setSupervisorDept] = useState<string | null>(null);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [schools, setSchools] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Form state
   const [audienceType, setAudienceType] = useState<"group" | "student">("group");
+  const [selectedSchool, setSelectedSchool] = useState<string>("__all__");
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("__all__");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
@@ -65,6 +69,16 @@ export function MeetingScheduler() {
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState("10:00");
   const [duration, setDuration] = useState("30");
+
+  // Normalize for case/spacing-insensitive matching
+  const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
+
+  // Filtered students based on selected school + department
+  const filteredStudents = allStudents.filter(s => {
+    const schoolOk = selectedSchool === "__all__" || norm(s.school) === norm(selectedSchool);
+    const deptOk = selectedDepartment === "__all__" || norm(s.department) === norm(selectedDepartment);
+    return schoolOk && deptOk;
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -81,16 +95,7 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      // Get supervisor's department first
-      const { data: supProfile } = await supabase
-        .from("profiles")
-        .select("department")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      const dept = supProfile?.department || null;
-      setSupervisorDept(dept);
-
-      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, studentsRes] = await Promise.all([
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, { data: studentsData }, { data: schoolsData }] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -105,18 +110,16 @@ export function MeetingScheduler() {
           .from("student_groups")
           .select("id, name")
           .order("name", { ascending: true }),
-        dept
-          ? supabase
-              .from("profiles")
-              .select("user_id, full_name, email, department")
-              .eq("user_type", "student")
-              .eq("department", dept)
-              .order("full_name", { ascending: true })
-          : supabase
-              .from("profiles")
-              .select("user_id, full_name, email, department")
-              .eq("user_type", "student")
-              .order("full_name", { ascending: true }),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name, email, department, school")
+          .eq("user_type", "student")
+          .order("full_name", { ascending: true }),
+        supabase
+          .from("schools")
+          .select("name")
+          .eq("is_active", true)
+          .order("name", { ascending: true }),
       ]);
 
       const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
@@ -124,7 +127,32 @@ export function MeetingScheduler() {
         .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
-      setStudents((studentsRes.data || []) as Student[]);
+
+      const studentList = (studentsData || []) as Student[];
+      setAllStudents(studentList);
+
+      // Combine schools from the schools table + any unique values from student profiles (case-insensitive)
+      const schoolSet = new Map<string, string>();
+      (schoolsData || []).forEach((s: any) => {
+        if (s.name) schoolSet.set(s.name.trim().toLowerCase(), s.name.trim());
+      });
+      studentList.forEach(s => {
+        if (s.school && s.school.trim()) {
+          const k = s.school.trim().toLowerCase();
+          if (!schoolSet.has(k)) schoolSet.set(k, s.school.trim());
+        }
+      });
+      setSchools(Array.from(schoolSet.values()).sort());
+
+      // Departments from student profiles (case-insensitive dedupe)
+      const deptSet = new Map<string, string>();
+      studentList.forEach(s => {
+        if (s.department && s.department.trim()) {
+          const k = s.department.trim().toLowerCase();
+          if (!deptSet.has(k)) deptSet.set(k, s.department.trim());
+        }
+      });
+      setDepartments(Array.from(deptSet.values()).sort());
 
       const enriched = (meetingsData || []).map((m: any) => ({
         ...m,
@@ -175,11 +203,11 @@ export function MeetingScheduler() {
         }
         rows = targetGroupIds.map(gid => ({ ...baseRow, group_id: gid }));
       } else {
-        const targetStudentIds = selectedStudent === "__all_dept__"
-          ? students.map(s => s.user_id)
+        const targetStudentIds = selectedStudent === "__all_filtered__"
+          ? filteredStudents.map(s => s.user_id)
           : [selectedStudent];
         if (targetStudentIds.length === 0) {
-          toast.error("No students found in your department");
+          toast.error("No students match the selected school/department");
           setSubmitting(false);
           return;
         }
@@ -311,7 +339,7 @@ export function MeetingScheduler() {
                       audienceType === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
                     )}
                   >
-                    <Users className="h-3 w-3 inline mr-1" /> Student{supervisorDept ? ` (${supervisorDept})` : ""}
+                    <Users className="h-3 w-3 inline mr-1" /> Student
                   </button>
                 </div>
 
@@ -347,39 +375,67 @@ export function MeetingScheduler() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Select value={selectedStudent} onValueChange={setSelectedStudent}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={supervisorDept ? `Choose a student in ${supervisorDept}` : "Choose a student"} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-72">
-                      {students.length === 0 ? (
-                        <SelectItem value="none" disabled>
-                          No students found{supervisorDept ? ` in ${supervisorDept}` : ""}
-                        </SelectItem>
-                      ) : (
-                        <>
-                          <SelectItem value="__all_dept__">
-                            <span className="flex items-center gap-2 font-medium">
-                              <Users className="h-3 w-3" /> All students{supervisorDept ? ` in ${supervisorDept}` : ""} ({students.length})
-                            </span>
-                          </SelectItem>
-                          {students.map(s => (
-                            <SelectItem key={s.user_id} value={s.user_id}>
-                              <span className="flex items-center gap-2">
-                                {s.full_name || s.email}
-                                <span className="text-[10px] text-muted-foreground">{s.email}</span>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground">School</Label>
+                        <Select value={selectedSchool} onValueChange={(v) => { setSelectedSchool(v); setSelectedStudent(""); }}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            <SelectItem value="__all__">All schools</SelectItem>
+                            {schools.map(s => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-[11px] text-muted-foreground">Department</Label>
+                        <Select value={selectedDepartment} onValueChange={(v) => { setSelectedDepartment(v); setSelectedStudent(""); }}>
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            <SelectItem value="__all__">All departments</SelectItem>
+                            {departments.map(d => (
+                              <SelectItem key={d} value={d}>{d}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={`Choose a student (${filteredStudents.length} available)`} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {filteredStudents.length === 0 ? (
+                          <SelectItem value="none" disabled>No students match these filters</SelectItem>
+                        ) : (
+                          <>
+                            <SelectItem value="__all_filtered__">
+                              <span className="flex items-center gap-2 font-medium">
+                                <Users className="h-3 w-3" /> All matching students ({filteredStudents.length})
                               </span>
                             </SelectItem>
-                          ))}
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
-                {audienceType === "student" && !supervisorDept && (
-                  <p className="text-[11px] text-warning mt-1">
-                    Set your department in your profile to filter students by department.
-                  </p>
+                            {filteredStudents.map(s => (
+                              <SelectItem key={s.user_id} value={s.user_id}>
+                                <span className="flex flex-col">
+                                  <span>{s.full_name || s.email}</span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    {s.department || "—"} · {s.school || "—"}
+                                  </span>
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 )}
               </div>
 
