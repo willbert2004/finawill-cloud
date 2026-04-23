@@ -214,7 +214,7 @@ export function MeetingScheduler() {
 
       if (audienceType === "group") {
         const targetGroupIds = selectedGroup === "__all__"
-          ? groups.map(g => g.id)
+          ? filteredGroups.map(g => g.id)
           : [selectedGroup];
         if (targetGroupIds.length === 0) {
           toast.error("No groups available to schedule");
