@@ -409,7 +409,7 @@ export default function MyProfile() {
       </div>
 
       <Dialog open={editorOpen} onOpenChange={(o) => { if (!uploadingAvatar) setEditorOpen(o); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Adjust your photo</DialogTitle>
             <DialogDescription>Drag to reposition, then zoom or rotate. Click Save to update your profile picture.</DialogDescription>
