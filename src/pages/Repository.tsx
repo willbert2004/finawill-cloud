@@ -171,6 +171,7 @@ export default function Repository() {
     else if (tab === "approved") filtered = projects.filter(p => p.status === 'approved');
     else if (tab === "pending") filtered = projects.filter(p => p.status === 'pending');
     else if (tab === "finalized") filtered = projects.filter(p => p.status === 'finalized');
+    else if (tab === "final") filtered = projects.filter(p => (projectDocs[p.id] || []).some(d => d.document_type === 'final_zip'));
     else if (tab === "archived") filtered = projects.filter(p => p.status === 'archived');
 
     return filtered.filter(p => {
