@@ -37,20 +37,31 @@ interface Group {
   allocated?: boolean;
 }
 
+interface Student {
+  user_id: string;
+  full_name: string | null;
+  email: string;
+  department: string | null;
+}
+
 export function MeetingScheduler() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [supervisorDept, setSupervisorDept] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Form state
+  const [audienceType, setAudienceType] = useState<"group" | "student">("group");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [meetingLink, setMeetingLink] = useState("");
   const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState("10:00");
   const [duration, setDuration] = useState("30");
@@ -70,7 +81,16 @@ export function MeetingScheduler() {
   const fetchData = async () => {
     if (!user) return;
     try {
-      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }] = await Promise.all([
+      // Get supervisor's department first
+      const { data: supProfile } = await supabase
+        .from("profiles")
+        .select("department")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const dept = supProfile?.department || null;
+      setSupervisorDept(dept);
+
+      const [{ data: meetingsData }, { data: allocations }, { data: allGroups }, studentsRes] = await Promise.all([
         supabase
           .from("meetings")
           .select("*")
@@ -85,19 +105,30 @@ export function MeetingScheduler() {
           .from("student_groups")
           .select("id, name")
           .order("name", { ascending: true }),
+        dept
+          ? supabase
+              .from("profiles")
+              .select("user_id, full_name, email, department")
+              .eq("user_type", "student")
+              .eq("department", dept)
+              .order("full_name", { ascending: true })
+          : supabase
+              .from("profiles")
+              .select("user_id, full_name, email, department")
+              .eq("user_type", "student")
+              .order("full_name", { ascending: true }),
       ]);
 
       const allocatedIds = new Set((allocations || []).map((a: any) => a.group_id));
-      // Show all groups; mark allocated ones and put them first
       const groupList: Group[] = (allGroups || [])
         .map((g: any) => ({ id: g.id, name: g.name, allocated: allocatedIds.has(g.id) }))
         .sort((a, b) => Number(b.allocated) - Number(a.allocated));
       setGroups(groupList);
+      setStudents((studentsRes.data || []) as Student[]);
 
-      // Enrich meetings with group names
       const enriched = (meetingsData || []).map((m: any) => ({
         ...m,
-        group_name: groupList.find(g => g.id === m.group_id)?.name || "Unknown Group",
+        group_name: groupList.find(g => g.id === m.group_id)?.name || (m.student_id ? "Individual student" : "Unknown Group"),
       }));
       setMeetings(enriched);
     } catch (err) {
@@ -108,40 +139,60 @@ export function MeetingScheduler() {
   };
 
   const handleSchedule = async () => {
-    if (!user || !title || !meetingLink || !selectedGroup || !selectedDate) {
+    if (!user || !title || !meetingLink || !selectedDate) {
       toast.error("Please fill in all required fields");
+      return;
+    }
+    if (audienceType === "group" && !selectedGroup) {
+      toast.error("Please select a group");
+      return;
+    }
+    if (audienceType === "student" && !selectedStudent) {
+      toast.error("Please select a student");
       return;
     }
 
     setSubmitting(true);
     try {
-      const targetGroupIds = selectedGroup === "__all__"
-        ? groups.map(g => g.id)
-        : [selectedGroup];
-
-      if (targetGroupIds.length === 0) {
-        toast.error("No groups available to schedule");
-        setSubmitting(false);
-        return;
-      }
-
-      const rows = targetGroupIds.map(gid => ({
+      let rows: any[] = [];
+      const baseRow = {
         supervisor_id: user.id,
-        group_id: gid,
         title,
         description: description || null,
         meeting_link: meetingLink,
         meeting_date: selectedDate.toISOString().split('T')[0],
         meeting_time: selectedTime,
-      }));
+      };
+
+      if (audienceType === "group") {
+        const targetGroupIds = selectedGroup === "__all__"
+          ? groups.map(g => g.id)
+          : [selectedGroup];
+        if (targetGroupIds.length === 0) {
+          toast.error("No groups available to schedule");
+          setSubmitting(false);
+          return;
+        }
+        rows = targetGroupIds.map(gid => ({ ...baseRow, group_id: gid }));
+      } else {
+        const targetStudentIds = selectedStudent === "__all_dept__"
+          ? students.map(s => s.user_id)
+          : [selectedStudent];
+        if (targetStudentIds.length === 0) {
+          toast.error("No students found in your department");
+          setSubmitting(false);
+          return;
+        }
+        rows = targetStudentIds.map(sid => ({ ...baseRow, student_id: sid }));
+      }
 
       const { error } = await supabase.from("meetings").insert(rows as any);
 
       if (error) throw error;
       toast.success(
-        targetGroupIds.length > 1
-          ? `Meeting scheduled for ${targetGroupIds.length} groups!`
-          : "Meeting scheduled! Students have been notified."
+        rows.length > 1
+          ? `Meeting scheduled for ${rows.length} ${audienceType === "group" ? "groups" : "students"}!`
+          : "Meeting scheduled! Notification sent."
       );
       resetForm();
       setDialogOpen(false);
@@ -169,6 +220,8 @@ export function MeetingScheduler() {
     setDescription("");
     setMeetingLink("");
     setSelectedGroup("");
+    setSelectedStudent("");
+    setAudienceType("group");
     setSelectedDate(undefined);
     setSelectedTime("10:00");
     setDuration("30");
@@ -238,37 +291,96 @@ export function MeetingScheduler() {
               </div>
 
               <div>
-                <Label>Select Group *</Label>
-                <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose a group" />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-72">
-                    {groups.length === 0 ? (
-                      <SelectItem value="none" disabled>No student groups available</SelectItem>
-                    ) : (
-                      <>
-                        <SelectItem value="__all__">
-                          <span className="flex items-center gap-2 font-medium">
-                            <Users className="h-3 w-3" /> All Groups ({groups.length})
-                          </span>
-                        </SelectItem>
-                        {groups.map(g => (
-                          <SelectItem key={g.id} value={g.id}>
-                            <span className="flex items-center gap-2">
-                              <Users className="h-3 w-3" /> {g.name}
-                              {g.allocated && (
-                                <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
-                                  Allocated
-                                </Badge>
-                              )}
+                <Label>Meet with *</Label>
+                <div className="flex gap-1 mb-2 p-1 rounded-md bg-muted">
+                  <button
+                    type="button"
+                    onClick={() => setAudienceType("group")}
+                    className={cn(
+                      "flex-1 text-xs font-medium py-1.5 rounded transition-colors",
+                      audienceType === "group" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    <Users className="h-3 w-3 inline mr-1" /> Group
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAudienceType("student")}
+                    className={cn(
+                      "flex-1 text-xs font-medium py-1.5 rounded transition-colors",
+                      audienceType === "student" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    <Users className="h-3 w-3 inline mr-1" /> Student{supervisorDept ? ` (${supervisorDept})` : ""}
+                  </button>
+                </div>
+
+                {audienceType === "group" ? (
+                  <Select value={selectedGroup} onValueChange={setSelectedGroup}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a group" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {groups.length === 0 ? (
+                        <SelectItem value="none" disabled>No student groups available</SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="__all__">
+                            <span className="flex items-center gap-2 font-medium">
+                              <Users className="h-3 w-3" /> All Groups ({groups.length})
                             </span>
                           </SelectItem>
-                        ))}
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                          {groups.map(g => (
+                            <SelectItem key={g.id} value={g.id}>
+                              <span className="flex items-center gap-2">
+                                <Users className="h-3 w-3" /> {g.name}
+                                {g.allocated && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-success/40 text-success">
+                                    Allocated
+                                  </Badge>
+                                )}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={supervisorDept ? `Choose a student in ${supervisorDept}` : "Choose a student"} />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-72">
+                      {students.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No students found{supervisorDept ? ` in ${supervisorDept}` : ""}
+                        </SelectItem>
+                      ) : (
+                        <>
+                          <SelectItem value="__all_dept__">
+                            <span className="flex items-center gap-2 font-medium">
+                              <Users className="h-3 w-3" /> All students{supervisorDept ? ` in ${supervisorDept}` : ""} ({students.length})
+                            </span>
+                          </SelectItem>
+                          {students.map(s => (
+                            <SelectItem key={s.user_id} value={s.user_id}>
+                              <span className="flex items-center gap-2">
+                                {s.full_name || s.email}
+                                <span className="text-[10px] text-muted-foreground">{s.email}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+                {audienceType === "student" && !supervisorDept && (
+                  <p className="text-[11px] text-warning mt-1">
+                    Set your department in your profile to filter students by department.
+                  </p>
+                )}
               </div>
 
               <div>
