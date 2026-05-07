@@ -602,6 +602,7 @@ serve(async (req) => {
     const response = {
       isDuplicate,
       highestSimilarity: highestMatch ? Math.round(highestMatch.score * 10) / 10 : 0,
+      highestClassification,
       thresholds: {
         high: { min: thresholds.high.min_score, max: thresholds.high.max_score },
         possible: { min: thresholds.possible.min_score, max: thresholds.possible.max_score },
