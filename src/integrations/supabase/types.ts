@@ -835,6 +835,7 @@ export type Database = {
           department: string | null
           description: string
           document_url: string | null
+          duplicate_score: number | null
           id: string
           is_duplicate: boolean | null
           keywords: string[] | null
@@ -853,6 +854,7 @@ export type Database = {
           department?: string | null
           description: string
           document_url?: string | null
+          duplicate_score?: number | null
           id?: string
           is_duplicate?: boolean | null
           keywords?: string[] | null
@@ -871,6 +873,7 @@ export type Database = {
           department?: string | null
           description?: string
           document_url?: string | null
+          duplicate_score?: number | null
           id?: string
           is_duplicate?: boolean | null
           keywords?: string[] | null

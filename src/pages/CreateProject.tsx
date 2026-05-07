@@ -49,6 +49,7 @@ interface DuplicateCheckResult {
   message: string;
   similarProjects: SimilarProject[];
   highestSimilarity: number;
+  highestClassification?: 'high' | 'possible' | 'low';
 }
 
 interface AllocationResult {
@@ -136,6 +137,7 @@ export default function CreateProject() {
         message: data.message,
         similarProjects: data.similarProjects || [],
         highestSimilarity: data.highestSimilarity || 0,
+        highestClassification: data.highestClassification,
       });
       setDuplicateChecked(true);
       if (data.isDuplicate) {
@@ -174,9 +176,10 @@ export default function CreateProject() {
           keywords: buildProjectKeywords(formData.category),
           status: 'rejected',
           similarity_score: duplicateResult?.highestSimilarity || 0,
+          duplicate_score: duplicateResult?.highestSimilarity || 0,
           is_duplicate: true,
           rejection_reason: duplicateResult?.message || 'Flagged as duplicate',
-        });
+        } as any);
       } catch (saveErr) {
         console.error('Failed to save duplicate record:', saveErr);
       }
@@ -205,14 +208,17 @@ export default function CreateProject() {
         setSubmitted(true);
         toast({ title: "Project Resubmitted!" });
       } else {
+        const dupScore = duplicateResult?.highestSimilarity || 0;
+        const flagPossible = duplicateResult?.highestClassification === 'possible';
         const { data: project, error } = await supabase.from('projects').insert({
           title: formData.title, description: formData.description, objectives: formData.objectives,
           student_id: user.id, department: formData.department,
           keywords: buildProjectKeywords(formData.category),
           status: isFinished ? 'completed' : 'pending_review',
-          similarity_score: duplicateResult?.highestSimilarity || 0,
-          is_duplicate: false,
-        }).select().single();
+          similarity_score: dupScore,
+          duplicate_score: dupScore,
+          is_duplicate: flagPossible,
+        } as any).select().single();
         if (error) throw error;
         if (!isFinished && project) {
           // Seed pending ratings for all matching supervisors
