@@ -49,6 +49,7 @@ interface DuplicateCheckResult {
   message: string;
   similarProjects: SimilarProject[];
   highestSimilarity: number;
+  highestClassification?: 'high' | 'possible' | 'low';
 }
 
 interface AllocationResult {
