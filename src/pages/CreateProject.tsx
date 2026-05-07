@@ -137,6 +137,7 @@ export default function CreateProject() {
         message: data.message,
         similarProjects: data.similarProjects || [],
         highestSimilarity: data.highestSimilarity || 0,
+        highestClassification: data.highestClassification,
       });
       setDuplicateChecked(true);
       if (data.isDuplicate) {
