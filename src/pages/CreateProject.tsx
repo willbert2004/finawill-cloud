@@ -176,9 +176,10 @@ export default function CreateProject() {
           keywords: buildProjectKeywords(formData.category),
           status: 'rejected',
           similarity_score: duplicateResult?.highestSimilarity || 0,
+          duplicate_score: duplicateResult?.highestSimilarity || 0,
           is_duplicate: true,
           rejection_reason: duplicateResult?.message || 'Flagged as duplicate',
-        });
+        } as any);
       } catch (saveErr) {
         console.error('Failed to save duplicate record:', saveErr);
       }
