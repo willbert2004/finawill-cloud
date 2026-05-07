@@ -208,14 +208,17 @@ export default function CreateProject() {
         setSubmitted(true);
         toast({ title: "Project Resubmitted!" });
       } else {
+        const dupScore = duplicateResult?.highestSimilarity || 0;
+        const flagPossible = duplicateResult?.highestClassification === 'possible';
         const { data: project, error } = await supabase.from('projects').insert({
           title: formData.title, description: formData.description, objectives: formData.objectives,
           student_id: user.id, department: formData.department,
           keywords: buildProjectKeywords(formData.category),
           status: isFinished ? 'completed' : 'pending_review',
-          similarity_score: duplicateResult?.highestSimilarity || 0,
-          is_duplicate: false,
-        }).select().single();
+          similarity_score: dupScore,
+          duplicate_score: dupScore,
+          is_duplicate: flagPossible,
+        } as any).select().single();
         if (error) throw error;
         if (!isFinished && project) {
           // Seed pending ratings for all matching supervisors
